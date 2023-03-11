@@ -283,7 +283,7 @@ fig.tight_layout()
 
 # # Custom functions for P3, P4 and P5
 
-# In[ ]:
+# In[180]:
 
 
 def logNormal(x, mean, cov):
@@ -344,21 +344,28 @@ class metrics:
             f1[i] = 2 * p * r / (p + r)
         return f1
     
-    def roc(predict, actual, prob, ax, labels=[0, 1], thresolds=[0, 0.1, 0.25, 0.4, 0.6, 0.8, 0.95, 1]):
+    def roc(predict, actual, prob, ax, labels=[0, 1], thresolds=[0, 0.2, 0.4, 0.6, 0.8, 1]):
         ax.set_xlabel("False positive rate")
         ax.set_ylabel("True positive rate")
         
         for label in labels:
-            tp, fp = np.zeros(len(thresolds)), np.zeros(len(thresolds))
+            tp, fp, tn, fn = [np.zeros(len(thresolds)) for _ in range(4)]
             for t in range(len(thresolds)):
                 for i in range(actual.shape[0]):
                     if float(prob[i][label]) >= thresolds[t]:
                         if actual[i] == 0:
-                            tp[t] += 1
+                            tp[t] += 1.0
                         else:
-                            fp[t] += 1
-                            
-            ax.plot(fp, tp, label=label, marker='x')
+                            fp[t] += 1.0
+                    else:
+                        if actual[i] == 0:
+                            fn[t] += 1.0
+                        else:
+                            tn[t] += 1.0
+                        
+            fpr = fp / (fp + tn + 1e-7)
+            tpr = tp / (tp + fn + 1e-7)
+            ax.plot(fpr, tpr, label=label, marker='x')
     
     def print(X, Y, X_test, Y_test, classStats, density):
         n_labels = len(classStats)
@@ -476,7 +483,7 @@ X_test, Y_test = splitData(p3["test"])
 
 # ## Bayes' classifier with normal distribution
 
-# In[163]:
+# In[181]:
 
 
 p3["result"] = [[] for _ in range(5)]
@@ -485,10 +492,162 @@ p3["result"][0] = metrics.print(X, Y, X_test, Y_test, classStats, logNormal)
 
 # ## Bayes' classifier with exponential distribution
 
-# In[148]:
+# In[182]:
 
 
 p3["result"][1] = metrics.print(X, Y, X_test, Y_test, classStats, logExp)
+
+
+# ## Logistic Regressor
+
+# In[167]:
+
+
+train_data = np.genfromtxt("data/p3_train.csv", delimiter=',')
+test_data = np.genfromtxt("data/p3_test.csv", delimiter=',')
+
+# Split data into features and labels
+X_train = train_data[:, :-1]
+y_train_orig = train_data[:, -1]
+X_test = test_data[:, :-1]
+y_test_orig = test_data[:, -1]
+
+# One-hot encode target variable
+num_classes = 5
+num_samples = y_train_orig.shape[0]
+y_train = np.zeros((num_samples, num_classes))
+for i in range(num_samples):
+    y_train[i, int(y_train_orig[i]) - 1] = 1
+
+
+# Define sigmoid function
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
+# Define softmax function
+def softmax(x):
+    exp_x = np.exp(x)
+    return exp_x / np.sum(exp_x, axis=1, keepdims=True)
+
+
+# Initialize weights and biases
+num_features = X_train.shape[1]
+W = np.random.randn(num_features, num_classes)
+b = np.random.randn(num_classes)
+
+# Set hyperparameters
+learning_rate = 0.1
+num_iterations = 1000
+epsilon = 1e-8
+
+# Train model using gradient descent
+prev_loss = float('inf')
+for i in range(num_iterations):
+    # Forward propagation
+    z = np.dot(X_train, W) + b
+    y_pred = softmax(z)
+
+    # Compute loss
+    loss = -np.sum(y_train * np.log(y_pred + epsilon)) / num_samples
+
+    # Backward propagation
+    dz = y_pred - y_train
+    dW = np.dot(X_train.T, dz) / num_samples
+    db = np.sum(dz, axis=0) / num_samples
+
+    # Update weights and biases
+    W -= learning_rate * dW
+    b -= learning_rate * db
+
+    # Check stopping criterion
+    if prev_loss - loss < epsilon:
+        print('Stopping criterion met')
+        break
+
+    prev_loss = loss
+
+# Evaluate model on test set
+z = np.dot(X_test, W) + b
+y_pred = np.argmax(softmax(z), axis=1) + 1
+accuracy = np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
+print('Test accuracy:', accuracy)
+
+
+z_train = np.dot(X_train, W) + b
+y_train_pred = np.argmax(softmax(z_train), axis=1) + 1
+train_loss = -np.sum(y_train * np.log(softmax(z_train) + epsilon)) / num_samples
+train_error_rate = 1 - np.sum(y_train_pred == y_train_orig) / y_train_orig.shape[0]
+print('Training empirical risk:', train_loss)
+print('Training error rate:', train_error_rate)
+
+# Compute empirical risk on test data
+num_samples_test = y_test_orig.shape[0]
+y_test = np.zeros((num_samples_test, num_classes))
+for i in range(num_samples_test):
+    y_test[i, int(y_test_orig[i]) - 1] = 1
+
+z_test = np.dot(X_test, W) + b
+test_loss = -np.sum(y_test * np.log(softmax(z_test) + epsilon)) / num_samples_test
+test_error_rate = 1 - np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
+print('Test empirical risk:', test_loss)
+print('Test error rate:', test_error_rate)
+
+
+
+num_classes = len(np.unique(y_test_orig))
+confusion_matrix = np.zeros((num_classes, num_classes))
+for i in range(len(y_test_orig)):
+    true_class = int(y_test_orig[i] - 1)
+    predicted_class = int(y_pred[i] - 1)
+    confusion_matrix[true_class, predicted_class] += 1
+print('Confusion matrix:')
+print(confusion_matrix)
+
+
+num_classes = len(np.unique(y_test_orig))
+f1_scores = np.zeros(num_classes)
+for i in range(num_classes):
+    true_positives = confusion_matrix[i, i]
+    false_positives = np.sum(confusion_matrix[:, i]) - true_positives
+    false_negatives = np.sum(confusion_matrix[i, :]) - true_positives
+    precision = true_positives / (true_positives + false_positives + 1e-8)
+    recall = true_positives / (true_positives + false_negatives + 1e-8)
+    f1_scores[i] = 2 * precision * recall / (precision + recall + 1e-8)
+print('Class-wise F1 score:')
+print(f1_scores)
+
+from matplotlib import pyplot as plt
+
+# Choose two classes
+class_1 = 5
+class_2 = 3
+
+# Get predicted probabilities for the two classes
+y_class_1 = y_pred == class_1
+y_class_2 = y_pred == class_2
+y_prob_1 = softmax(z)[:, class_1 - 1]
+y_prob_2 = softmax(z)[:, class_2 - 1]
+
+# Compute true positive rate and false positive rate
+num_thresholds = 100
+tpr = np.zeros(num_thresholds)
+fpr = np.zeros(num_thresholds)
+for i in range(num_thresholds):
+    threshold = i / (num_thresholds - 1)
+    tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
+    fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
+    tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+    fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
+    tpr[i] = tp / (tp + fn + 1e-8)
+    fpr[i] = fp / (fp + tn + 1e-8)
+
+# Plot RoC curve
+plt.plot(fpr, tpr)
+plt.xlabel('False positive rate')
+plt.ylabel('True positive rate')
+plt.title('RoC curve for classes {} and {}'.format(class_1, class_2))
+plt.show()
 
 
 # # P4 (Multi-class classification)
@@ -562,7 +721,7 @@ p4["splitData"] = [trainTestSplit(p4["data"], r) for r in [0.2, 0.3, 0.5, 0.7, 0
 
 # ## Naive Bayes
 
-# In[162]:
+# In[183]:
 
 
 p4["result"] = [[] for _ in range(5)]
@@ -623,7 +782,7 @@ p5["splitData"] = [trainTestSplit(np.array(classWiseData), r, stats) for r in [0
 
 # ## Naive Bayes
 
-# In[157]:
+# In[184]:
 
 
 p5["result"] = [[] for _ in range(5)]
