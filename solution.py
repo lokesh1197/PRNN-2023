@@ -283,28 +283,58 @@ fig.tight_layout()
 
 # # Custom functions for P3, P4 and P5
 
-# In[196]:
+# In[ ]:
 
 
-def logNormal(x, mean, cov):
+def normal(x, mean ,cov, *args):
+    n = len(mean)
+    try:
+        val = np.exp(-0.5 * (x - mean) @ np.linalg.pinv(cov) @ (x - mean)) / ((2 * np.pi * np.linalg.det(cov)) ** (n/2) + 1e-8)
+        return val
+    except RuntimeError: # return a very small value when np.exp is overloaded
+        return 1e-8
+
+def logGMM(x, mean, cov, weights, *args):
+    k = len(weights)
+    val = np.log(np.sum([weights[i] * normal(x, mean[i], cov[i]) for i in range(k)]) + 1e-8)
+    return val
+
+def logNormal(x, mean, cov, *args):
     n = mean.shape[0]
     return - 0.5 * (n * np.log(2 * np.pi * np.linalg.det(cov)) + ((x - mean) @ np.linalg.inv(cov) @ (x - mean)))
 
 # assume independent features
-def logExp(x, mean, _):
-    # ignore features with negative mean
-    # for i in range(mean.size):
-    #     if x[i] <= 0:
-    #         np.delete(mean, i)
-    #         np.delete(x, i)
-    # print("Mean: ", mean)
+def logExp(x, mean, *args):
     return - np.log(np.abs(np.prod(mean))) - np.reciprocal(mean) @ x
 
-def naiveLogNormal(x, u, v):
+def naiveLogNormal(x, u, v, *args):
     return -0.5 * np.sum([np.log(2 * np.pi * v[i][i]) + (x[i] - u[i]) * (x[i] - u[i])/v[i][i] for i in range(u.shape[0]) if v[i][i] > 0])
 
+# X -> data, k -> number of normal densities
+def em(X, k, max_iter = 100, random_seed=42):
+    # m -> number of datapoints, n -> number of features
+    m, n = X.shape
+    
+    # initialization
+    np.random.seed(random_seed)
+    weights = np.random.dirichlet(np.ones(k))
+    means = [np.mean(X) + np.random.rand(n) for _ in range(k)]
+    covs = [np.diag(np.random.rand(n) * 2 + 0.5) for _ in range(k)]
+    
+    for _ in range(max_iter):
+        # Expectation step
+        probs = np.array([[normal(x, means[i], covs[i]) * weights[i] for i in range(k)] for x in X])
+        probs = (probs.T / np.sum(probs, axis=1)).T
+        
+        # Maximization step
+        weights = np.sum(probs, axis=0) / m
+        covs = [(X - means[i]).T @ np.diag(probs.T[i]) @ (X - means[i]) / np.sum(probs.T[i]) for i in range(k)]
+        means = [np.average(X, weights=probs.T[i], axis=0) for i in range(k)]
+        
+    return weights, means, covs
+
 def classify(x, classStats, density):
-    label = 0
+    label = -1
     max = -99999
     sum = 0
     prob = []
@@ -312,13 +342,31 @@ def classify(x, classStats, density):
         mean = classStats[key]["mean"]
         cov = classStats[key]["cov"]
         prior = classStats[key]["prior"]
-        value = np.log(prior) + density(x, mean, cov)
+        weights = classStats[key]["weights"] if "weights" in classStats[key] else []
+        value = np.log(prior) + density(x, mean, cov, weights)
         prob.append(value)
         sum += value
         if value > max:
             max, label = value, key
     return np.r_[[label], (np.array(prob) / sum)]
+
+# returns X, Y, X_test, Y_test and classStats
+def trainTestSplit(data, train_ratio, func):
+    n = data.shape[0]
+    m = int(np.floor(data.shape[1] * train_ratio))
+    classStats = {}
+    x_train, y_train, x_test, y_test = [[[] for _ in range(n)] for _ in range(4)]
+    for label in range(n):
+        x_train[label], y_train[label], classStats[label] = func(label, data[label][:m], True)
+        x_test[label], y_test[label] = func(label, data[label][m:])
     
+    X, Y, X_test, Y_test = [x.reshape(-1, x.shape[-1]) for x in [np.array(x) for x in [x_train, y_train, x_test, y_test]]]
+    return X, Y.flatten(), X_test, Y_test.flatten(), classStats
+
+
+# In[106]:
+
+
 class metrics:
     def accuracy(predicted, actual):
         m = actual.size
@@ -331,8 +379,6 @@ class metrics:
             cnf[int(actual[i])][int(predicted[i])] += 1
         return cnf
     
-    # precision = TP/(TP + FP), recall = TP/(TP + FN), 
-    # f1 = 2 * precision * recall / (precision + recall)
     def f1Score(cnf):
         sum_predict = np.sum(cnf, axis=0)
         sum_actual  = np.sum(cnf, axis=1)
@@ -340,14 +386,11 @@ class metrics:
         for i in range(f1.size):
             TP = cnf[i][i]
             FP, FN = sum_predict[i] - TP, sum_actual[i] - TP
-            p, r = TP/(TP + FP), TP/(TP + FN)
-            f1[i] = 2 * p * r / (p + r)
+            p, r = TP/(TP + FP + 1e-8), TP/(TP + FN + 1e-8)
+            f1[i] = 2 * p * r / (p + r + 1e-8)
         return f1
     
     def roc(predict, actual, prob, ax, labels=[0, 1], thresolds=[0, 0.2, 0.4, 0.6, 0.8, 1]):
-        ax.set_xlabel("False positive rate")
-        ax.set_ylabel("True positive rate")
-        
         for label in labels:
             tp, fp, tn, fn = [np.zeros(len(thresolds)) for _ in range(4)]
             for t in range(len(thresolds)):
@@ -363,11 +406,16 @@ class metrics:
                         else:
                             tn[t] += 1.0
                         
-            fpr = fp / (fp + tn + 1e-7)
-            tpr = tp / (tp + fn + 1e-7)
-            ax.plot(fpr, tpr, label=label, marker='x')
+            fpr = fp / (fp + tn + 1e-8)
+            tpr = tp / (tp + fn + 1e-8)
+            ax.plot(fpr, tpr, label=label, marker='x')        
+        
+        ax.set_xlabel("False positive rate")
+        ax.set_ylabel("True positive rate")
+        ax.legend()
+        
     
-    def print(X, Y, X_test, Y_test, classStats, density):
+    def print(X, Y, X_test, Y_test, classStats, density, result=True):
         n_labels = len(classStats)
         train = np.array([classify(x, classStats, density) for x in X])
         test = np.array([classify(x, classStats, density) for x in X_test])
@@ -387,46 +435,32 @@ class metrics:
         print("------------------ Test ----------------------")
         print("Classification Accuracy : ", acc_test)
         print("F1 Score                : ", f1_test)
+        # print("Confusion Matrix        : ")
+        # print(cnf_test)
         
-        fig, ax = plt.subplots(2, 2, figsize=(15, 8))
-        ax[0][0].matshow(cnf_train)
+        fig, ax = plt.subplots(2, 2, figsize=(16, 16))
+        ax[0][0].matshow(cnf_train.T, cmap='GnBu')
         ax[0][0].set_xlabel("Predicted")
         ax[0][0].set_ylabel("Actual")
         ax[0][0].set_title("Confusion Matrix (train)")
+        for (x, y), value in np.ndenumerate(cnf_train):
+            ax[0][0].text(x, y, f"{value: d}", va="center", ha="center")
         
-        ax[0][1].matshow(cnf_test)
+        ax[0][1].matshow(cnf_test.T, cmap='GnBu')
         ax[0][1].set_xlabel("Predicted")
         ax[0][1].set_ylabel("Actual")
         ax[0][1].set_title("Confusion Matrix (test)")
-        
-        ax[1][0].set_title("ROC (train)")
-        ax[1][1].set_title("ROC (test)")
+        for (x, y), value in np.ndenumerate(cnf_test):
+            ax[0][1].text(x, y, f"{value: d}", va="center", ha="center")
         
         thresolds = [i/100 for i in range(100)]
         metrics.roc(y_train, Y, p_train, ax[1][0], thresolds=thresolds)
         metrics.roc(y_test, Y_test, p_test, ax[1][1], thresolds=thresolds)
-
-        return [acc_train, f1_train], [acc_test, f1_test]
-    
-def imgToFeatures(label, data, stats=False):
-    X = np.array([x.flatten() for x in data]) / 255
-    Y = label * np.ones(data.shape[0])
-    if stats:
-        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0] }
-    return X, Y
-
-# returns X, Y, X_test, Y_test and classStats
-def trainTestSplit(data, train_ratio, func = imgToFeatures):
-    n = data.shape[0]
-    m = int(np.floor(data.shape[1] * train_ratio))
-    classStats = {}
-    x_train, y_train, x_test, y_test = [[[] for _ in range(n)] for _ in range(4)]
-    for label in range(n):
-        x_train[label], y_train[label], classStats[label] = func(label, data[label][:m], True)
-        x_test[label], y_test[label] = func(label, data[label][m:])
-    
-    X, Y, X_test, Y_test = [x.reshape(-1, x.shape[-1]) for x in [np.array(x) for x in [x_train, y_train, x_test, y_test]]]
-    return X, Y.flatten(), X_test, Y_test.flatten(), classStats
+        ax[1][0].set_title("ROC (train)")
+        ax[1][1].set_title("ROC (test)")
+        
+        if result:
+            return [acc_train, f1_train], [acc_test, f1_test]
 
 
 # # P3 (Multi-class classification)
@@ -448,13 +482,15 @@ def trainTestSplit(data, train_ratio, func = imgToFeatures):
 # 
 # **DATA:** `p3train/test.csv`
 
-# In[192]:
+# ## Data Handling
+
+# In[20]:
 
 
 p3["train"].shape, p3["test"].shape
 
 
-# In[193]:
+# In[21]:
 
 
 classStats = {}
@@ -468,13 +504,14 @@ for row in p3["train"]:
 # classStats = [np.array(data) for data in classStats]
 for i in range(len(classStats)):
     data = np.array(classStats[i])
-    classStats[i] = { "mean": np.mean(data, axis=0), "cov": np.cov(data.T), "prior": data.shape[0] }
+    classStats[i] = { "mean": np.mean(data, axis=0), "cov": np.cov(data.T), "prior": data.shape[0], "data": data }
 
 
-# In[194]:
+# In[73]:
 
 
 def splitData(data):
+    # X = np.array([normalize(col) for col in data.T[:-1]]).T
     X = data.T[:-1].T
     Y = data.T[-1].T.astype("int") - 1
     return X, Y
@@ -482,10 +519,12 @@ def splitData(data):
 X, Y = splitData(p3["train"])
 X_test, Y_test = splitData(p3["test"])
 
+X.shape, Y.shape, X_test.shape, Y_test.shape
+
 
 # ## Bayes' classifier with normal distribution
 
-# In[197]:
+# In[23]:
 
 
 p3["result"] = [[] for _ in range(5)]
@@ -494,7 +533,7 @@ p3["result"][0] = metrics.print(X, Y, X_test, Y_test, classStats, logNormal)
 
 # ## Bayes' classifier with exponential distribution
 
-# In[182]:
+# In[24]:
 
 
 p3["result"][1] = metrics.print(X, Y, X_test, Y_test, classStats, logExp)
@@ -502,19 +541,43 @@ p3["result"][1] = metrics.print(X, Y, X_test, Y_test, classStats, logExp)
 
 # ## Bayes' classifier with GMM distribution
 
+# In[107]:
+
+
+def printGmmP3(number_of_guassians = 2, max_iter = 50):
+    classStatsGMM = {}
+    for label in classStats:
+        classStatsGMM[label] = { "prior": classStats[label]["prior"] }
+        classStatsGMM[label]["weights"], classStatsGMM[label]["mean"], classStatsGMM[label]["cov"] = em(classStats[label]["data"], number_of_guassians, max_iter)
+
+    metrics.print(X, Y, X_test, Y_test, classStatsGMM, logGMM, result=False)
+
+
+# In[108]:
+
+
+printGmmP3(2)
+
+
 # In[ ]:
 
 
+printGmmP3(5)
 
+
+# In[ ]:
+
+
+printGmmP3(8)
 
 
 # ## Logistic Regression
 
-# In[167]:
+# In[26]:
 
 
-train_data = np.genfromtxt("data/p3_train.csv", delimiter=',')
-test_data = np.genfromtxt("data/p3_test.csv", delimiter=',')
+train_data = p3["train"]
+test_data = p3["test"]
 
 # Split data into features and labels
 X_train = train_data[:, :-1]
@@ -611,8 +674,8 @@ for i in range(len(y_test_orig)):
     true_class = int(y_test_orig[i] - 1)
     predicted_class = int(y_pred[i] - 1)
     confusion_matrix[true_class, predicted_class] += 1
-print('Confusion matrix:')
-print(confusion_matrix)
+# print('Confusion matrix:')
+# print(confusion_matrix)
 
 
 num_classes = len(np.unique(y_test_orig))
@@ -652,17 +715,26 @@ for i in range(num_thresholds):
     tpr[i] = tp / (tp + fn + 1e-8)
     fpr[i] = fp / (fp + tn + 1e-8)
 
-# Plot RoC curve
-plt.plot(fpr, tpr)
-plt.xlabel('False positive rate')
-plt.ylabel('True positive rate')
-plt.title('RoC curve for classes {} and {}'.format(class_1, class_2))
-plt.show()
+# Plot RoC curve and confusion matrix
+fig, ax = plt.subplots(2, 1, figsize=(8, 16))
+ax[0].matshow(confusion_matrix, cmap='GnBu')
+ax[0].set_xlabel("Predicted")
+ax[0].set_ylabel("Actual")
+ax[0].set_title("Confusion Matrix")
+for (x, y), value in np.ndenumerate(confusion_matrix):
+    ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
+
+ax[1].plot(fpr, tpr, marker='x')
+ax[1].set_xlabel("False positive rate")
+ax[1].set_ylabel("True positive rate")                     
+ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+
+fig.tight_layout()
 
 
 # ## Linear classifier using one vs all approach
 
-# In[212]:
+# In[27]:
 
 
 data = p3["train"]
@@ -786,12 +858,21 @@ for i in range(num_thresholds):
     fpr.append(fp / (fp + tn))
     tpr.append(tp / (tp + fn))
 
-# Plot ROC curve
-plt.plot(fpr, tpr)
-plt.xlabel('False Positive Rate')
-plt.ylabel('True Positive Rate')
-plt.title('ROC Curve for Classes {} and {}'.format(class1, class2))
-plt.show()
+# Plot RoC curve and confusion matrix
+fig, ax = plt.subplots(2, 1, figsize=(8, 16))
+ax[0].matshow(confusion_matrix, cmap='GnBu')
+ax[0].set_xlabel("Predicted")
+ax[0].set_ylabel("Actual")
+ax[0].set_title("Confusion Matrix")
+for (x, y), value in np.ndenumerate(confusion_matrix):
+    ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
+
+ax[1].plot(fpr, tpr, marker='x')
+ax[1].set_xlabel("False positive rate")
+ax[1].set_ylabel("True positive rate")                     
+ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+
+fig.tight_layout()
 
 
 # # P4 (Multi-class classification)
@@ -815,15 +896,15 @@ plt.show()
 # 
 # **DATA:** `images.zip`
 
-# In[149]:
-
-
-get_ipython().run_cell_magic('capture', '', '!unzip -n data/images.zip -d data\n')
-
-
 # ## Data handling
 
-# In[150]:
+# In[28]:
+
+
+get_ipython().run_cell_magic('capture', '', '!unzip -n data/images.zip -d data')
+
+
+# In[29]:
 
 
 import os
@@ -844,7 +925,7 @@ p4["data"] = np.array(data)
 p4["data"].shape
 
 
-# In[151]:
+# In[30]:
 
 
 fig, ax = plt.subplots(2, 5, figsize=(12, 4))
@@ -857,15 +938,22 @@ for i in range(p4["data"].shape[0]):
 fig.tight_layout()
 
 
-# In[161]:
+# In[31]:
 
 
-p4["splitData"] = [trainTestSplit(p4["data"], r) for r in [0.2, 0.3, 0.5, 0.7, 0.9]]
+def imgToFeatures(label, data, stats=False):
+    X = np.array([x.flatten() for x in data]) / 255
+    Y = label * np.ones(data.shape[0])
+    if stats:
+        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0] }
+    return X, Y
+
+p4["splitData"] = [trainTestSplit(p4["data"], r, imgToFeatures) for r in [0.2, 0.3, 0.5, 0.7, 0.9]]
 
 
 # ## Naive Bayes
 
-# In[205]:
+# In[32]:
 
 
 p4["result"] = [[] for _ in range(5)]
@@ -873,7 +961,7 @@ p4["result"] = [[] for _ in range(5)]
 
 # ### Test split -- 20:80
 
-# In[206]:
+# In[33]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][0], naiveLogNormal)
@@ -881,7 +969,7 @@ p4["result"][0] = metrics.print(*p4["splitData"][0], naiveLogNormal)
 
 # ### Test split -- 30:70
 
-# In[207]:
+# In[34]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][1], naiveLogNormal)
@@ -889,7 +977,7 @@ p4["result"][0] = metrics.print(*p4["splitData"][1], naiveLogNormal)
 
 # ### Test split -- 50:50
 
-# In[208]:
+# In[35]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][2], naiveLogNormal)
@@ -897,7 +985,7 @@ p4["result"][0] = metrics.print(*p4["splitData"][2], naiveLogNormal)
 
 # ### Test split -- 70:30
 
-# In[209]:
+# In[36]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][3], naiveLogNormal)
@@ -905,15 +993,69 @@ p4["result"][0] = metrics.print(*p4["splitData"][3], naiveLogNormal)
 
 # ### Test split -- 90:10
 
-# In[210]:
+# In[37]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][4], naiveLogNormal)
 
 
+# ## GMM
+
+# In[ ]:
+
+
+def printGmm(data, number_of_guassians=5):
+    classStatsGMM = {}
+    for label in data[-1]:
+        classStatsGMM[label] = { "prior": classStats[label]["prior"] }
+        classStatsGMM[label]["weights"], classStatsGMM[label]["mean"], classStatsGMM[label]["cov"] = em(classStats[label]["data"], number_of_guassians, 50)
+
+    metrics.print(*data[:-1], classStatsGMM, logGMM, result=False)
+
+
+# ### Test split -- 20:80
+
+# In[ ]:
+
+
+printGmm(p4["splitData"][0])
+
+
+# ### Test split -- 30:70
+
+# In[ ]:
+
+
+printGmm(p4["splitData"][1])
+
+
+# ### Test split -- 50:50
+
+# In[ ]:
+
+
+printGmm(p4["splitData"][2])
+
+
+# ### Test split -- 70:30
+
+# In[ ]:
+
+
+printGmm(p4["splitData"][3])
+
+
+# ### Test split -- 90:10
+
+# In[ ]:
+
+
+printGmm(p4["splitData"][4])
+
+
 # ## Logistic Regression
 
-# In[230]:
+# In[38]:
 
 
 def logisticRegressor(data):
@@ -1040,11 +1182,13 @@ def logisticRegressor(data):
         fpr[i] = fp / (fp + tn + 1e-8)
 
     # Plot RoC curve and confusion matrix
-    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-    ax[0].matshow(confusion_matrix)
+    fig, ax = plt.subplots(2, 1, figsize=(10, 20))
+    ax[0].matshow(confusion_matrix, cmap='GnBu')
     ax[0].set_xlabel("Predicted")
     ax[0].set_ylabel("Actual")
     ax[0].set_title("Confusion Matrix")
+    for (x, y), value in np.ndenumerate(confusion_matrix):
+        ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
     
     ax[1].plot(fpr, tpr, marker='x')
     ax[1].set_xlabel("False positive rate")
@@ -1056,7 +1200,7 @@ def logisticRegressor(data):
 
 # ### Test split -- 20:80
 
-# In[232]:
+# In[39]:
 
 
 logisticRegressor(p4["splitData"][0])
@@ -1064,7 +1208,7 @@ logisticRegressor(p4["splitData"][0])
 
 # ### Test split -- 30:70
 
-# In[233]:
+# In[40]:
 
 
 logisticRegressor(p4["splitData"][1])
@@ -1072,7 +1216,7 @@ logisticRegressor(p4["splitData"][1])
 
 # ### Test split -- 50:50
 
-# In[234]:
+# In[41]:
 
 
 logisticRegressor(p4["splitData"][2])
@@ -1080,7 +1224,7 @@ logisticRegressor(p4["splitData"][2])
 
 # ### Test split -- 70:30
 
-# In[235]:
+# In[42]:
 
 
 logisticRegressor(p4["splitData"][3])
@@ -1088,59 +1232,10 @@ logisticRegressor(p4["splitData"][3])
 
 # ### Test split -- 90:10
 
-# In[236]:
+# In[43]:
 
 
 logisticRegressor(p4["splitData"][4])
-
-
-# ## GMM
-
-# In[215]:
-
-
-def gmm(data):
-    pass
-
-
-# ### Test split -- 20:80
-
-# In[216]:
-
-
-gmm(p4["splitData"][0])
-
-
-# ### Test split -- 30:70
-
-# In[217]:
-
-
-gmm(p4["splitData"][1])
-
-
-# ### Test split -- 50:50
-
-# In[218]:
-
-
-gmm(p4["splitData"][2])
-
-
-# ### Test split -- 70:30
-
-# In[219]:
-
-
-gmm(p4["splitData"][3])
-
-
-# ### Test split -- 90:10
-
-# In[220]:
-
-
-gmm(p4["splitData"][4])
 
 
 # # P5 (Multi-class classification)
@@ -1149,19 +1244,21 @@ gmm(p4["splitData"][4])
 # 
 # **DATA:** `PCA_MNIST`(KannadaMNISTPCA.csv)
 
-# In[154]:
+# ## Data handling
+
+# In[50]:
 
 
 p5["data"] = np.genfromtxt(dataFolder + "/PCA_MNIST.csv", delimiter=',')[1:]
 
 
-# In[155]:
+# In[51]:
 
 
 p5["data"].shape
 
 
-# In[156]:
+# In[52]:
 
 
 def stats(label, data, stats=False):
@@ -1181,7 +1278,7 @@ p5["splitData"] = [trainTestSplit(np.array(classWiseData), r, stats) for r in [0
 
 # ## Naive Bayes
 
-# In[198]:
+# In[53]:
 
 
 p5["result"] = [[] for _ in range(5)]
@@ -1189,7 +1286,7 @@ p5["result"] = [[] for _ in range(5)]
 
 # ### Test split -- 20:80
 
-# In[200]:
+# In[54]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][0], naiveLogNormal)
@@ -1197,7 +1294,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][0], naiveLogNormal)
 
 # ### Test split -- 30:70
 
-# In[201]:
+# In[55]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][1], naiveLogNormal)
@@ -1205,7 +1302,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][1], naiveLogNormal)
 
 # ### Test split -- 50:50
 
-# In[202]:
+# In[56]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][2], naiveLogNormal)
@@ -1213,7 +1310,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][2], naiveLogNormal)
 
 # ### Test split -- 70:30
 
-# In[203]:
+# In[57]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][3], naiveLogNormal)
@@ -1221,15 +1318,57 @@ p5["result"][0] = metrics.print(*p5["splitData"][3], naiveLogNormal)
 
 # ### Test split -- 90:10
 
-# In[204]:
+# In[58]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][4], naiveLogNormal)
 
 
+# ## GMM
+
+# ### Test split -- 20:80
+
+# In[ ]:
+
+
+printGmm(p5["splitData"][0])
+
+
+# ### Test split -- 30:70
+
+# In[ ]:
+
+
+printGmm(p5["splitData"][1])
+
+
+# ### Test split -- 50:50
+
+# In[ ]:
+
+
+printGmm(p5["splitData"][2])
+
+
+# ### Test split -- 70:30
+
+# In[ ]:
+
+
+printGmm(p5["splitData"][3])
+
+
+# ### Test split -- 90:10
+
+# In[ ]:
+
+
+printGmm(p5["splitData"][4])
+
+
 # ## Logistic Regression
 
-# In[244]:
+# In[59]:
 
 
 def logisticRegressor(data):
@@ -1358,11 +1497,13 @@ def logisticRegressor(data):
         fpr[i] = fp / (fp + tn + 1e-8)
 
     # Plot RoC curve and confusion matrix
-    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
-    ax[0].matshow(confusion_matrix)
+    fig, ax = plt.subplots(2, 1, figsize=(10, 20))
+    ax[0].matshow(confusion_matrix, cmap='GnBu')
     ax[0].set_xlabel("Predicted")
     ax[0].set_ylabel("Actual")
     ax[0].set_title("Confusion Matrix")
+    for (x, y), value in np.ndenumerate(confusion_matrix):
+        ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
     
     ax[1].plot(fpr, tpr, marker='x')
     ax[1].set_xlabel("False positive rate")
@@ -1374,7 +1515,7 @@ def logisticRegressor(data):
 
 # ### Test split -- 20:80
 
-# In[245]:
+# In[60]:
 
 
 logisticRegressor(p5["splitData"][0])
@@ -1382,7 +1523,7 @@ logisticRegressor(p5["splitData"][0])
 
 # ### Test split -- 30:70
 
-# In[246]:
+# In[61]:
 
 
 logisticRegressor(p5["splitData"][1])
@@ -1390,7 +1531,7 @@ logisticRegressor(p5["splitData"][1])
 
 # ### Test split -- 50:50
 
-# In[247]:
+# In[62]:
 
 
 logisticRegressor(p5["splitData"][2])
@@ -1398,7 +1539,7 @@ logisticRegressor(p5["splitData"][2])
 
 # ### Test split -- 70:30
 
-# In[248]:
+# In[63]:
 
 
 logisticRegressor(p5["splitData"][3])
@@ -1406,57 +1547,8 @@ logisticRegressor(p5["splitData"][3])
 
 # ### Test split -- 90:10
 
-# In[249]:
+# In[64]:
 
 
 logisticRegressor(p5["splitData"][4])
-
-
-# ## GMM
-
-# In[215]:
-
-
-def gmm(data):
-    pass
-
-
-# ### Test split -- 20:80
-
-# In[216]:
-
-
-gmm(p4["splitData"][0])
-
-
-# ### Test split -- 30:70
-
-# In[217]:
-
-
-gmm(p4["splitData"][1])
-
-
-# ### Test split -- 50:50
-
-# In[218]:
-
-
-gmm(p4["splitData"][2])
-
-
-# ### Test split -- 70:30
-
-# In[219]:
-
-
-gmm(p4["splitData"][3])
-
-
-# ### Test split -- 90:10
-
-# In[220]:
-
-
-gmm(p4["splitData"][4])
 
