@@ -283,7 +283,7 @@ fig.tight_layout()
 
 # # Custom functions for P3, P4 and P5
 
-# In[180]:
+# In[196]:
 
 
 def logNormal(x, mean, cov):
@@ -401,8 +401,10 @@ class metrics:
         
         ax[1][0].set_title("ROC (train)")
         ax[1][1].set_title("ROC (test)")
-        metrics.roc(y_train, Y, p_train, ax[1][0])
-        metrics.roc(y_test, Y_test, p_test, ax[1][1])
+        
+        thresolds = [i/100 for i in range(100)]
+        metrics.roc(y_train, Y, p_train, ax[1][0], thresolds=thresolds)
+        metrics.roc(y_test, Y_test, p_test, ax[1][1], thresolds=thresolds)
 
         return [acc_train, f1_train], [acc_test, f1_test]
     
@@ -446,13 +448,13 @@ def trainTestSplit(data, train_ratio, func = imgToFeatures):
 # 
 # **DATA:** `p3train/test.csv`
 
-# In[144]:
+# In[192]:
 
 
 p3["train"].shape, p3["test"].shape
 
 
-# In[145]:
+# In[193]:
 
 
 classStats = {}
@@ -469,7 +471,7 @@ for i in range(len(classStats)):
     classStats[i] = { "mean": np.mean(data, axis=0), "cov": np.cov(data.T), "prior": data.shape[0] }
 
 
-# In[146]:
+# In[194]:
 
 
 def splitData(data):
@@ -483,7 +485,7 @@ X_test, Y_test = splitData(p3["test"])
 
 # ## Bayes' classifier with normal distribution
 
-# In[181]:
+# In[197]:
 
 
 p3["result"] = [[] for _ in range(5)]
@@ -498,7 +500,15 @@ p3["result"][0] = metrics.print(X, Y, X_test, Y_test, classStats, logNormal)
 p3["result"][1] = metrics.print(X, Y, X_test, Y_test, classStats, logExp)
 
 
-# ## Logistic Regressor
+# ## Bayes' classifier with GMM distribution
+
+# In[ ]:
+
+
+
+
+
+# ## Logistic Regression
 
 # In[167]:
 
@@ -650,6 +660,140 @@ plt.title('RoC curve for classes {} and {}'.format(class_1, class_2))
 plt.show()
 
 
+# ## Linear classifier using one vs all approach
+
+# In[212]:
+
+
+data = p3["train"]
+X = data[:, :-1]  # Features
+y = data[:, -1]   # Labels
+
+# One-hot encode target variable
+num_classes = 5
+num_samples = y.shape[0]
+y_encoded = np.zeros((num_samples, num_classes))
+for i in range(num_samples):
+    y_encoded[i, int(y[i]) - 1] = 1
+
+# Add a column of 1s to X for bias term
+X = np.hstack((X, np.ones((num_samples, 1))))
+
+# Initialize weights
+num_features = X.shape[1]
+W = np.random.randn(num_features, num_classes)
+
+# Set hyperparameters
+learning_rate = 0.01
+num_iterations = 1000
+epsilon = 1e-8
+
+# Train model using gradient descent
+prev_loss = float('inf')
+for i in range(num_iterations):
+    # Forward propagation
+    z = np.dot(X, W)
+    y_pred = np.exp(z) / np.sum(np.exp(z), axis=1, keepdims=True)
+
+    # Compute loss
+    loss = -np.sum(y_encoded * np.log(y_pred + epsilon)) / num_samples
+
+    # Backward propagation
+    dz = y_pred - y_encoded
+    dW = np.dot(X.T, dz) / num_samples
+
+    # Update weights
+    W -= learning_rate * dW
+
+    # Check stopping criterion
+    if prev_loss - loss < epsilon:
+        print('Stopping criterion met')
+        break
+
+    prev_loss = loss
+
+# Evaluate model on test set
+X_test = test_data[:, :-1]
+y_test_orig = test_data[:, -1]
+num_test_samples = y_test_orig.shape[0]
+
+# One-hot encode target variable
+y_test = np.zeros((num_test_samples, num_classes))
+for i in range(num_test_samples):
+    y_test[i, int(y_test_orig[i]) - 1] = 1
+
+# Add a column of 1s to X_test for bias term
+X_test = np.hstack((X_test, np.ones((num_test_samples, 1))))
+
+# Compute predictions on test set
+z_test = np.dot(X_test, W)
+y_test_pred = np.argmax(z_test, axis=1) + 1
+
+# Compute test accuracy
+test_accuracy = np.sum(y_test_pred == y_test_orig) / num_test_samples
+print('Test accuracy:', test_accuracy)
+
+conf_matrix = np.zeros((num_classes, num_classes))
+for i in range(num_test_samples):
+    true_class = int(y_test_orig[i]) - 1
+    pred_class = int(y_test_pred[i]) - 1
+    conf_matrix[true_class, pred_class] += 1
+print('Confusion matrix:')
+print(conf_matrix)
+
+# Compute class-wise F1 score
+f1_scores = []
+for c in range(num_classes):
+    tp = conf_matrix[c,c]
+    fp = np.sum(conf_matrix[:,c]) - tp
+    fn = np.sum(conf_matrix[c,:]) - tp
+    precision = tp / (tp + fp + epsilon)
+    recall = tp / (tp + fn + epsilon)
+    f1 = 2 * precision * recall / (precision + recall + epsilon)
+    f1_scores.append(f1)
+print('Class-wise F1 score:', f1_scores)
+
+# Compute predictions on test set
+z_test = np.dot(X_test, W)
+y_test_prob = np.exp(z_test) / np.sum(np.exp(z_test), axis=1, keepdims=True)
+y_test_pred = np.argmax(z_test, axis=1) + 1
+
+# Choose two classes for ROC curve
+class1 = 1
+class2 = 2
+
+# Compute false positive rate and true positive rate for different thresholds
+fpr = []
+tpr = []
+num_thresholds = 100
+for i in range(num_thresholds):
+    threshold = i / num_thresholds
+    tp = 0
+    fp = 0
+    tn = 0
+    fn = 0
+    for j in range(num_test_samples):
+        if y_test_orig[j] == class1:
+            if y_test_prob[j][class1-1] >= threshold:
+                tp += 1
+            else:
+                fn += 1
+        elif y_test_orig[j] == class2:
+            if y_test_prob[j][class1-1] >= threshold:
+                fp += 1
+            else:
+                tn += 1
+    fpr.append(fp / (fp + tn))
+    tpr.append(tp / (tp + fn))
+
+# Plot ROC curve
+plt.plot(fpr, tpr)
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve for Classes {} and {}'.format(class1, class2))
+plt.show()
+
+
 # # P4 (Multi-class classification)
 # 
 # In this problem, we consider an image dataset called Kannada-MNIST. This dataset contains images (60,000 images with 6000 per class) of digits from the south Indian language of Kannada. The task is to build a 10-class classifier for the digits. 
@@ -721,27 +865,282 @@ p4["splitData"] = [trainTestSplit(p4["data"], r) for r in [0.2, 0.3, 0.5, 0.7, 0
 
 # ## Naive Bayes
 
-# In[183]:
+# In[205]:
 
 
 p4["result"] = [[] for _ in range(5)]
+
+
+# ### Test split -- 20:80
+
+# In[206]:
+
+
 p4["result"][0] = metrics.print(*p4["splitData"][0], naiveLogNormal)
 
 
-# ## Logistic Regressor
+# ### Test split -- 30:70
 
-# In[ ]:
+# In[207]:
 
 
+p4["result"][0] = metrics.print(*p4["splitData"][1], naiveLogNormal)
 
+
+# ### Test split -- 50:50
+
+# In[208]:
+
+
+p4["result"][0] = metrics.print(*p4["splitData"][2], naiveLogNormal)
+
+
+# ### Test split -- 70:30
+
+# In[209]:
+
+
+p4["result"][0] = metrics.print(*p4["splitData"][3], naiveLogNormal)
+
+
+# ### Test split -- 90:10
+
+# In[210]:
+
+
+p4["result"][0] = metrics.print(*p4["splitData"][4], naiveLogNormal)
+
+
+# ## Logistic Regression
+
+# In[230]:
+
+
+def logisticRegressor(data):
+    X_train,y_train_orig , X_test, y_test_orig, classStats = data
+    num_classes = 10
+    num_samples = y_train_orig.shape[0]
+    y_train = np.zeros((num_samples, num_classes))
+    for i in range(num_samples):
+        y_train[i, int(y_train_orig[i]) - 1] = 1
+
+    # Define sigmoid function
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+
+    # Define softmax function
+    def softmax(x):
+        exp_x = np.exp(x)
+        return exp_x / np.sum(exp_x, axis=1, keepdims=True)
+
+    # Initialize weights and biases
+    num_features = X_train.shape[1]
+    W = np.random.randn(num_features, num_classes)
+    b = np.random.randn(num_classes)
+
+    # Set hyperparameters
+    learning_rate = 0.1
+    num_iterations = 1000
+    epsilon = 1e-8
+
+    # Train model using gradient descent
+    prev_loss = float('inf')
+    for i in range(num_iterations):
+        # Forward propagation
+        z = np.dot(X_train, W) + b
+        y_pred = softmax(z)
+
+        # Compute loss
+        loss = -np.sum(y_train * np.log(y_pred + epsilon)) / num_samples
+
+        # Backward propagation
+        dz = y_pred - y_train
+        dW = np.dot(X_train.T, dz) / num_samples
+        db = np.sum(dz, axis=0) / num_samples
+
+        # Update weights and biases
+        W -= learning_rate * dW
+        b -= learning_rate * db
+
+        # Check stopping criterion
+        if prev_loss - loss < epsilon:
+            print('Stopping criterion met')
+            break
+
+        prev_loss = loss
+
+    # Evaluate model on test set
+    z = np.dot(X_test, W) + b
+    y_pred = np.argmax(softmax(z), axis=1) + 1
+    accuracy = np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
+    print('Test accuracy:', accuracy)
+
+    z_train = np.dot(X_train, W) + b
+    y_train_pred = np.argmax(softmax(z_train), axis=1) + 1
+    train_loss = -np.sum(y_train * np.log(softmax(z_train) + epsilon)) / num_samples
+    train_error_rate = 1 - np.sum(y_train_pred == y_train_orig) / y_train_orig.shape[0]
+    print('Training empirical risk:', train_loss)
+    print('Training error rate:', train_error_rate)
+
+    # Compute empirical risk on test data
+    num_samples_test = y_test_orig.shape[0]
+    y_test = np.zeros((num_samples_test, num_classes))
+    for i in range(num_samples_test):
+        y_test[i, int(y_test_orig[i]) - 1] = 1
+
+    z_test = np.dot(X_test, W) + b
+    test_loss = -np.sum(y_test * np.log(softmax(z_test) + epsilon)) / num_samples_test
+    test_error_rate = 1 - np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
+    print('Test empirical risk:', test_loss)
+    print('Test error rate:', test_error_rate)
+
+    num_classes = len(np.unique(y_test_orig))
+    confusion_matrix = np.zeros((num_classes, num_classes))
+    for i in range(len(y_test_orig)):
+        true_class = int(y_test_orig[i] - 1)
+        predicted_class = int(y_pred[i] - 1)
+        confusion_matrix[true_class, predicted_class] += 1
+    # print('Confusion matrix:')
+    # print(confusion_matrix)
+
+
+    num_classes = len(np.unique(y_test_orig))
+    f1_scores = np.zeros(num_classes)
+    for i in range(num_classes):
+        true_positives = confusion_matrix[i, i]
+        false_positives = np.sum(confusion_matrix[:, i]) - true_positives
+        false_negatives = np.sum(confusion_matrix[i, :]) - true_positives
+        precision = true_positives / (true_positives + false_positives + 1e-8)
+        recall = true_positives / (true_positives + false_negatives + 1e-8)
+        f1_scores[i] = 2 * precision * recall / (precision + recall + 1e-8)
+    print('Class-wise F1 score:')
+    print(f1_scores)
+
+    # Choose two classes
+    class_1 = 5
+    class_2 = 3
+
+    # Get predicted probabilities for the two classes
+    y_class_1 = y_pred == class_1
+    y_class_2 = y_pred == class_2
+    y_prob_1 = softmax(z)[:, class_1 - 1]
+    y_prob_2 = softmax(z)[:, class_2 - 1]
+
+    # Compute true positive rate and false positive rate
+    num_thresholds = 100
+    tpr = np.zeros(num_thresholds)
+    fpr = np.zeros(num_thresholds)
+    for i in range(num_thresholds):
+        threshold = i / (num_thresholds - 1)
+        tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
+        fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
+        tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+        fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
+        tpr[i] = tp / (tp + fn + 1e-8)
+        fpr[i] = fp / (fp + tn + 1e-8)
+
+    # Plot RoC curve and confusion matrix
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    ax[0].matshow(confusion_matrix)
+    ax[0].set_xlabel("Predicted")
+    ax[0].set_ylabel("Actual")
+    ax[0].set_title("Confusion Matrix")
+    
+    ax[1].plot(fpr, tpr, marker='x')
+    ax[1].set_xlabel("False positive rate")
+    ax[1].set_ylabel("True positive rate")                     
+    ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+    
+    fig.tight_layout()
+
+
+# ### Test split -- 20:80
+
+# In[232]:
+
+
+logisticRegressor(p4["splitData"][0])
+
+
+# ### Test split -- 30:70
+
+# In[233]:
+
+
+logisticRegressor(p4["splitData"][1])
+
+
+# ### Test split -- 50:50
+
+# In[234]:
+
+
+logisticRegressor(p4["splitData"][2])
+
+
+# ### Test split -- 70:30
+
+# In[235]:
+
+
+logisticRegressor(p4["splitData"][3])
+
+
+# ### Test split -- 90:10
+
+# In[236]:
+
+
+logisticRegressor(p4["splitData"][4])
 
 
 # ## GMM
 
-# In[ ]:
+# In[215]:
 
 
+def gmm(data):
+    pass
 
+
+# ### Test split -- 20:80
+
+# In[216]:
+
+
+gmm(p4["splitData"][0])
+
+
+# ### Test split -- 30:70
+
+# In[217]:
+
+
+gmm(p4["splitData"][1])
+
+
+# ### Test split -- 50:50
+
+# In[218]:
+
+
+gmm(p4["splitData"][2])
+
+
+# ### Test split -- 70:30
+
+# In[219]:
+
+
+gmm(p4["splitData"][3])
+
+
+# ### Test split -- 90:10
+
+# In[220]:
+
+
+gmm(p4["splitData"][4])
 
 
 # # P5 (Multi-class classification)
@@ -782,15 +1181,282 @@ p5["splitData"] = [trainTestSplit(np.array(classWiseData), r, stats) for r in [0
 
 # ## Naive Bayes
 
-# In[184]:
+# In[198]:
 
 
 p5["result"] = [[] for _ in range(5)]
+
+
+# ### Test split -- 20:80
+
+# In[200]:
+
+
 p5["result"][0] = metrics.print(*p5["splitData"][0], naiveLogNormal)
 
 
-# In[ ]:
+# ### Test split -- 30:70
+
+# In[201]:
 
 
+p5["result"][0] = metrics.print(*p5["splitData"][1], naiveLogNormal)
 
+
+# ### Test split -- 50:50
+
+# In[202]:
+
+
+p5["result"][0] = metrics.print(*p5["splitData"][2], naiveLogNormal)
+
+
+# ### Test split -- 70:30
+
+# In[203]:
+
+
+p5["result"][0] = metrics.print(*p5["splitData"][3], naiveLogNormal)
+
+
+# ### Test split -- 90:10
+
+# In[204]:
+
+
+p5["result"][0] = metrics.print(*p5["splitData"][4], naiveLogNormal)
+
+
+# ## Logistic Regression
+
+# In[244]:
+
+
+def logisticRegressor(data):
+    X_train,y_train_orig , X_test, y_test_orig, classStats = data
+    num_classes = 10
+    num_samples = y_train_orig.shape[0]
+    y_train = np.zeros((num_samples, num_classes))
+    for i in range(num_samples):
+        y_train[i, int(y_train_orig[i]) - 1] = 1
+
+    # Define sigmoid function
+    def sigmoid(x):
+        return 1 / (1 + np.exp(-x))
+
+    # Define softmax function
+    def softmax(x):
+        # subtract the maximum value from x to avoid overflow
+        x -= np.max(x, axis=1, keepdims=True)
+        exp_x = np.exp(x)
+        # divide by the sum of the exponential values along axis 1
+        return exp_x / np.sum(exp_x, axis=1, keepdims=True, where=np.isfinite(exp_x))
+
+    # Initialize weights and biases
+    num_features = X_train.shape[1]
+    W = np.random.randn(num_features, num_classes)
+    b = np.random.randn(num_classes)
+
+    # Set hyperparameters
+    learning_rate = 0.1
+    num_iterations = 1000
+    epsilon = 1e-8
+
+    # Train model using gradient descent
+    prev_loss = float('inf')
+    for i in range(num_iterations):
+        # Forward propagation
+        z = np.dot(X_train, W) + b
+        y_pred = softmax(z)
+
+        # Compute loss
+        loss = -np.sum(y_train * np.log(y_pred + epsilon)) / num_samples
+
+        # Backward propagation
+        dz = y_pred - y_train
+        dW = np.dot(X_train.T, dz) / num_samples
+        db = np.sum(dz, axis=0) / num_samples
+
+        # Update weights and biases
+        W -= learning_rate * dW
+        b -= learning_rate * db
+
+        # Check stopping criterion
+        if prev_loss - loss < epsilon:
+            print('Stopping criterion met')
+            break
+
+        prev_loss = loss
+
+    # Evaluate model on test set
+    z = np.dot(X_test, W) + b
+    y_pred = np.argmax(softmax(z), axis=1) + 1
+    accuracy = np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
+    print('Test accuracy:', accuracy)
+
+    z_train = np.dot(X_train, W) + b
+    y_train_pred = np.argmax(softmax(z_train), axis=1) + 1
+    train_loss = -np.sum(y_train * np.log(softmax(z_train) + epsilon)) / num_samples
+    train_error_rate = 1 - np.sum(y_train_pred == y_train_orig) / y_train_orig.shape[0]
+    print('Training empirical risk:', train_loss)
+    print('Training error rate:', train_error_rate)
+
+    # Compute empirical risk on test data
+    num_samples_test = y_test_orig.shape[0]
+    y_test = np.zeros((num_samples_test, num_classes))
+    for i in range(num_samples_test):
+        y_test[i, int(y_test_orig[i]) - 1] = 1
+
+    z_test = np.dot(X_test, W) + b
+    test_loss = -np.sum(y_test * np.log(softmax(z_test) + epsilon)) / num_samples_test
+    test_error_rate = 1 - np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
+    print('Test empirical risk:', test_loss)
+    print('Test error rate:', test_error_rate)
+
+    num_classes = len(np.unique(y_test_orig))
+    confusion_matrix = np.zeros((num_classes, num_classes))
+    for i in range(len(y_test_orig)):
+        true_class = int(y_test_orig[i] - 1)
+        predicted_class = int(y_pred[i] - 1)
+        confusion_matrix[true_class, predicted_class] += 1
+    # print('Confusion matrix:')
+    # print(confusion_matrix)
+
+    num_classes = len(np.unique(y_test_orig))
+    f1_scores = np.zeros(num_classes)
+    for i in range(num_classes):
+        true_positives = confusion_matrix[i, i]
+        false_positives = np.sum(confusion_matrix[:, i]) - true_positives
+        false_negatives = np.sum(confusion_matrix[i, :]) - true_positives
+        precision = true_positives / (true_positives + false_positives + 1e-8)
+        recall = true_positives / (true_positives + false_negatives + 1e-8)
+        f1_scores[i] = 2 * precision * recall / (precision + recall + 1e-8)
+    print('Class-wise F1 score:')
+    print(f1_scores)
+
+    # Choose two classes
+    class_1 = 5
+    class_2 = 3
+
+    # Get predicted probabilities for the two classes
+    y_class_1 = y_pred == class_1
+    y_class_2 = y_pred == class_2
+    y_prob_1 = softmax(z)[:, class_1 - 1]
+    y_prob_2 = softmax(z)[:, class_2 - 1]
+
+    # Compute true positive rate and false positive rate
+    num_thresholds = 100
+    tpr = np.zeros(num_thresholds)
+    fpr = np.zeros(num_thresholds)
+    for i in range(num_thresholds):
+        threshold = i / (num_thresholds - 1)
+        tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
+        fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
+        tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+        fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
+        tpr[i] = tp / (tp + fn + 1e-8)
+        fpr[i] = fp / (fp + tn + 1e-8)
+
+    # Plot RoC curve and confusion matrix
+    fig, ax = plt.subplots(1, 2, figsize=(8, 4))
+    ax[0].matshow(confusion_matrix)
+    ax[0].set_xlabel("Predicted")
+    ax[0].set_ylabel("Actual")
+    ax[0].set_title("Confusion Matrix")
+    
+    ax[1].plot(fpr, tpr, marker='x')
+    ax[1].set_xlabel("False positive rate")
+    ax[1].set_ylabel("True positive rate")                     
+    ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+    
+    fig.tight_layout()
+
+
+# ### Test split -- 20:80
+
+# In[245]:
+
+
+logisticRegressor(p5["splitData"][0])
+
+
+# ### Test split -- 30:70
+
+# In[246]:
+
+
+logisticRegressor(p5["splitData"][1])
+
+
+# ### Test split -- 50:50
+
+# In[247]:
+
+
+logisticRegressor(p5["splitData"][2])
+
+
+# ### Test split -- 70:30
+
+# In[248]:
+
+
+logisticRegressor(p5["splitData"][3])
+
+
+# ### Test split -- 90:10
+
+# In[249]:
+
+
+logisticRegressor(p5["splitData"][4])
+
+
+# ## GMM
+
+# In[215]:
+
+
+def gmm(data):
+    pass
+
+
+# ### Test split -- 20:80
+
+# In[216]:
+
+
+gmm(p4["splitData"][0])
+
+
+# ### Test split -- 30:70
+
+# In[217]:
+
+
+gmm(p4["splitData"][1])
+
+
+# ### Test split -- 50:50
+
+# In[218]:
+
+
+gmm(p4["splitData"][2])
+
+
+# ### Test split -- 70:30
+
+# In[219]:
+
+
+gmm(p4["splitData"][3])
+
+
+# ### Test split -- 90:10
+
+# In[220]:
+
+
+gmm(p4["splitData"][4])
 
