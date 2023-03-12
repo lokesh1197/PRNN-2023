@@ -3,7 +3,7 @@
 
 # # Initialization
 
-# In[1]:
+# In[135]:
 
 
 import numpy as np
@@ -13,7 +13,7 @@ from matplotlib import pyplot as plt
 from scipy.stats import ttest_ind
 
 
-# In[2]:
+# In[136]:
 
 
 dataFolder = "./data"
@@ -33,7 +33,7 @@ p3["train"] = np.genfromtxt(p3["trainDir"], delimiter=',')
 
 # # Custom functions for P1 and P2
 
-# In[3]:
+# In[137]:
 
 
 # Compute mean squared error
@@ -102,13 +102,13 @@ def printResult(x_train, y_train, x_test, y_test, func = lambda x : x):
 # 
 # **DATA:** `p1train/test.csv`
 
-# In[4]:
+# In[138]:
 
 
 p1["train"].shape
 
 
-# In[5]:
+# In[139]:
 
 
 X, Y = parseData(p1["train"])
@@ -126,7 +126,7 @@ print(mae(X, Y, W))
 # ## Linear regression
 # $h(x) = w_0 + w_1x_1 + w_2x_2$
 
-# In[6]:
+# In[140]:
 
 
 p1["result"] = printResult(X, Y, X_test, Y_test)
@@ -143,13 +143,13 @@ p1["result"] = printResult(X, Y, X_test, Y_test)
 # 
 # **DATA**: `p2train/test.csv`
 
-# In[7]:
+# In[141]:
 
 
 p2["train"].shape, p2["test"].shape
 
 
-# In[8]:
+# In[142]:
 
 
 X, Y = parseData(p2["train"])
@@ -166,7 +166,7 @@ print(mae(X, Y, W))
 # ## Linear regression
 # $h(x) = w_0 + w_1x_1 + w_2x_2 + w_3x_3$
 
-# In[9]:
+# In[143]:
 
 
 p2["result"] = [[] for _ in range(8)]
@@ -176,7 +176,7 @@ p2["result"][0] = printResult(X, Y, X_test, Y_test)
 # ## Non-Linear regression (1)
 # $h_1(x) = w_0 + w_1x_1 + w_2x_2 + w_3x_3 + w_4x_1x_2 + w_5x_2x_3 + w_6x_3x_1 + w_7x_1^2 + w_8x_2^2 + w_9x_3^2$
 
-# In[10]:
+# In[144]:
 
 
 def makeQuadratic(data):
@@ -191,7 +191,7 @@ p2["result"][1] = printResult(X, Y, X_test, Y_test, makeQuadratic)
 #      $+ w_4x_1x_2 + w_5x_2x_3 + w_6x_3x_1 + w_7x_1^2 + w_8x_2^2 + w_9x_3^2$
 #      $+ w_{10}x_1x_2x_3 + w_{11}x_1^2x_2 + w_{12}x_2^2x_1 + w_{13}x_2^2x_3 + w_{14}x_3^2x_2 + w_{15}x_3^2x_1 + w_{16}x_1^2x_3 + w_{17}x_1^3 + w_{18}x_2^3 + w_{19}x_3^3$
 
-# In[11]:
+# In[145]:
 
 
 def makeCubic(data):
@@ -204,7 +204,7 @@ p2["result"][2] = printResult(X, Y, X_test, Y_test, makeCubic)
 # ## Non-Linear regression (3)
 # $h_3(x) = h_1(h_1(x))$
 
-# In[12]:
+# In[146]:
 
 
 p2["result"][3] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(x)))
@@ -213,7 +213,7 @@ p2["result"][3] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(mak
 # ## Non-Linear regression (4)
 # $h_4(x) = h_1(h_2(x))$
 
-# In[13]:
+# In[147]:
 
 
 p2["result"][4] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeCubic(x)))
@@ -222,7 +222,7 @@ p2["result"][4] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(mak
 # ## Non-Linear regression (5)
 # $h_5(x) = h_2(h_2(x))$
 
-# In[14]:
+# In[148]:
 
 
 p2["result"][5] = printResult(X, Y, X_test, Y_test, lambda x : makeCubic(makeCubic(x)))
@@ -233,7 +233,7 @@ p2["result"][5] = printResult(X, Y, X_test, Y_test, lambda x : makeCubic(makeCub
 # 
 # $h_6(x) = \phi(h_1(x))$
 
-# In[15]:
+# In[149]:
 
 
 def makeExp(data):
@@ -246,13 +246,13 @@ p2["result"][6] = printResult(X, Y, X_test, Y_test, lambda x : makeExp(makeQuadr
 # ## Non-Linear regression (7)
 # $h_7(x) = \phi(h_2(x))$
 
-# In[16]:
+# In[150]:
 
 
 p2["result"][7] = printResult(X, Y, X_test, Y_test, lambda x : makeExp(makeCubic(x)))
 
 
-# In[17]:
+# In[151]:
 
 
 results = np.array(p2["result"])
@@ -281,18 +281,45 @@ ax[2].set_title("p-value vs complexity")
 fig.tight_layout()
 
 
-# # Custom functions for P3, P4 and P5
+# In[152]:
+
+
+a = np.array([[1, 2,2], [4, 3,5]])
+(a.T / np.sum(a, axis=1)).T
+
 
 # In[ ]:
 
 
+
+
+
+# In[153]:
+
+
+# means = [np.mean(a) + np.random.rand(3)]
+covs = [np.diag(np.random.rand(3) * 2 + 0.5)]
+print(covs)
+
+
+# # Custom functions for P3, P4 and P5
+
+# In[289]:
+
+
+np.exp(-np.log(np.finfo("float64").max)) / 1000
+
+
+# In[327]:
+
+
+max_float = np.finfo("float64").max
+max_exp = np.log(max_float)
+
 def normal(x, mean ,cov, *args):
     n = len(mean)
-    try:
-        val = np.exp(-0.5 * (x - mean) @ np.linalg.pinv(cov) @ (x - mean)) / ((2 * np.pi * np.linalg.det(cov)) ** (n/2) + 1e-8)
-        return val
-    except RuntimeError: # return a very small value when np.exp is overloaded
-        return 1e-8
+    val = -0.5 * (x - mean) @ np.linalg.pinv(cov) @ (x - mean)
+    return np.exp(val) if np.abs(val) < max_exp else (1/max_float) / ((2 * np.pi * np.linalg.det(cov)) ** (n/2) + 1e-8)
 
 def logGMM(x, mean, cov, weights, *args):
     k = len(weights)
@@ -301,7 +328,7 @@ def logGMM(x, mean, cov, weights, *args):
 
 def logNormal(x, mean, cov, *args):
     n = mean.shape[0]
-    return - 0.5 * (n * np.log(2 * np.pi * np.linalg.det(cov)) + ((x - mean) @ np.linalg.inv(cov) @ (x - mean)))
+    return - 0.5 * (n * np.log(2 * np.pi * np.linalg.det(cov)) + ((x - mean) @ np.linalg.inv(cov) @ (x - mean).T))
 
 # assume independent features
 def logExp(x, mean, *args):
@@ -314,22 +341,29 @@ def naiveLogNormal(x, u, v, *args):
 def em(X, k, max_iter = 100, random_seed=42):
     # m -> number of datapoints, n -> number of features
     m, n = X.shape
-    
+    eps = 1e-8
     # initialization
     np.random.seed(random_seed)
     weights = np.random.dirichlet(np.ones(k))
     means = [np.mean(X) + np.random.rand(n) for _ in range(k)]
     covs = [np.diag(np.random.rand(n) * 2 + 0.5) for _ in range(k)]
     
-    for _ in range(max_iter):
+    for i in range(max_iter):
+        # if np.sum(weights) == 0:
+        #     weights = np.ones(k) / k
+            
         # Expectation step
         probs = np.array([[normal(x, means[i], covs[i]) * weights[i] for i in range(k)] for x in X])
         probs = (probs.T / np.sum(probs, axis=1)).T
         
         # Maximization step
+        old_means = means.copy()
+        covs = [(X - means[i]).T @ np.diag(probs.T[i]) @ (X - means[i]) / (np.sum(probs.T[i]) + 1e-8) for i in range(k)]
+        means = [X.T @ probs.T[i] / (np.sum(probs.T[i]) + 1e-8)  for i in range(k)]
         weights = np.sum(probs, axis=0) / m
-        covs = [(X - means[i]).T @ np.diag(probs.T[i]) @ (X - means[i]) / np.sum(probs.T[i]) for i in range(k)]
-        means = [np.average(X, weights=probs.T[i], axis=0) for i in range(k)]
+        
+        if np.linalg.norm(np.array(means) - np.array(old_means)) < 1e-8:
+            break
         
     return weights, means, covs
 
@@ -364,7 +398,7 @@ def trainTestSplit(data, train_ratio, func):
     return X, Y.flatten(), X_test, Y_test.flatten(), classStats
 
 
-# In[106]:
+# In[317]:
 
 
 class metrics:
@@ -419,6 +453,8 @@ class metrics:
         n_labels = len(classStats)
         train = np.array([classify(x, classStats, density) for x in X])
         test = np.array([classify(x, classStats, density) for x in X_test])
+        # train = classify(X, classStats, density)
+        # test = classify(X, classStats, density)
         y_train, p_train = train.T[0], train.T[1:].T
         y_test, p_test = test.T[0], test.T[1:].T
                 
@@ -484,13 +520,13 @@ class metrics:
 
 # ## Data Handling
 
-# In[20]:
+# In[156]:
 
 
 p3["train"].shape, p3["test"].shape
 
 
-# In[21]:
+# In[157]:
 
 
 classStats = {}
@@ -507,7 +543,7 @@ for i in range(len(classStats)):
     classStats[i] = { "mean": np.mean(data, axis=0), "cov": np.cov(data.T), "prior": data.shape[0], "data": data }
 
 
-# In[73]:
+# In[320]:
 
 
 def splitData(data):
@@ -524,7 +560,7 @@ X.shape, Y.shape, X_test.shape, Y_test.shape
 
 # ## Bayes' classifier with normal distribution
 
-# In[23]:
+# In[318]:
 
 
 p3["result"] = [[] for _ in range(5)]
@@ -533,7 +569,7 @@ p3["result"][0] = metrics.print(X, Y, X_test, Y_test, classStats, logNormal)
 
 # ## Bayes' classifier with exponential distribution
 
-# In[24]:
+# In[160]:
 
 
 p3["result"][1] = metrics.print(X, Y, X_test, Y_test, classStats, logExp)
@@ -541,25 +577,26 @@ p3["result"][1] = metrics.print(X, Y, X_test, Y_test, classStats, logExp)
 
 # ## Bayes' classifier with GMM distribution
 
-# In[107]:
+# In[299]:
 
 
-def printGmmP3(number_of_guassians = 2, max_iter = 50):
+def printGmmP3(number_of_guassians , max_iter = 50):
     classStatsGMM = {}
     for label in classStats:
         classStatsGMM[label] = { "prior": classStats[label]["prior"] }
         classStatsGMM[label]["weights"], classStatsGMM[label]["mean"], classStatsGMM[label]["cov"] = em(classStats[label]["data"], number_of_guassians, max_iter)
+        print("weights of class ", str(label + 1), ": ", classStatsGMM[label]["weights"])
 
     metrics.print(X, Y, X_test, Y_test, classStatsGMM, logGMM, result=False)
 
 
-# In[108]:
+# In[300]:
 
 
 printGmmP3(2)
 
 
-# In[ ]:
+# In[301]:
 
 
 printGmmP3(5)
@@ -573,7 +610,7 @@ printGmmP3(8)
 
 # ## Logistic Regression
 
-# In[26]:
+# In[218]:
 
 
 train_data = p3["train"]
@@ -690,51 +727,112 @@ for i in range(num_classes):
 print('Class-wise F1 score:')
 print(f1_scores)
 
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
+
+# # Choose two classes
+# class_1 = 5
+# class_2 = 3
+
+# # Get predicted probabilities for the two classes
+# y_class_1 = y_pred == class_1
+# y_class_2 = y_pred == class_2
+# y_prob_1 = softmax(z)[:, class_1 - 1]
+# y_prob_2 = softmax(z)[:, class_2 - 1]
+
+# # Compute true positive rate and false positive rate
+# num_thresholds = 100
+# tpr = np.zeros(num_thresholds)
+# fpr = np.zeros(num_thresholds)
+# for i in range(num_thresholds):
+#     threshold = i / (num_thresholds - 1)
+#     tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
+#     fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
+#     tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+#     fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
+#     tpr[i] = tp / (tp + fn + 1e-8)
+#     fpr[i] = fp / (fp + tn + 1e-8)
+
+# # Plot RoC curve and confusion matrix
+# fig, ax = plt.subplots(2, 1, figsize=(8, 16))
+# ax[0].matshow(confusion_matrix, cmap='GnBu')
+# ax[0].set_xlabel("Predicted")
+# ax[0].set_ylabel("Actual")
+# ax[0].set_title("Confusion Matrix")
+# for (x, y), value in np.ndenumerate(confusion_matrix):
+#     ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
+
+# ax[1].plot(fpr, tpr, marker='x')
+# ax[1].set_xlabel("False positive rate")
+# ax[1].set_ylabel("True positive rate")                     
+# ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+
+# fig.tight_layout()
 
 # Choose two classes
-class_1 = 5
-class_2 = 3
-
+class_1 = 1
+class_2 = 2
 # Get predicted probabilities for the two classes
 y_class_1 = y_pred == class_1
 y_class_2 = y_pred == class_2
 y_prob_1 = softmax(z)[:, class_1 - 1]
 y_prob_2 = softmax(z)[:, class_2 - 1]
 
-# Compute true positive rate and false positive rate
+# Compute true positive rate and false positive rate for both classes
 num_thresholds = 100
-tpr = np.zeros(num_thresholds)
-fpr = np.zeros(num_thresholds)
+tpr_class_1 = np.zeros(num_thresholds)
+fpr_class_1 = np.zeros(num_thresholds)
+tpr_class_2 = np.zeros(num_thresholds)
+fpr_class_2 = np.zeros(num_thresholds)
+
 for i in range(num_thresholds):
     threshold = i / (num_thresholds - 1)
-    tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
-    fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
-    tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-    fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
-    tpr[i] = tp / (tp + fn + 1e-8)
-    fpr[i] = fp / (fp + tn + 1e-8)
+    tp_class_1 = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
+    fn_class_1 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
+    tn_class_1 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+    fp_class_1 = np.sum((y_prob_2 >= threshold) & (y_class_2 == False))
+    tpr_class_1[i] = tp_class_1 / (tp_class_1 + fn_class_1 + 1e-8)
+    fpr_class_1[i] = fp_class_1 / (fp_class_1 + tn_class_1 + 1e-8)
+    
+    tp_class_2 = np.sum((y_prob_2 >= threshold) & (y_class_2 == True))
+    fn_class_2 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+    tn_class_2 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
+    fp_class_2 = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
+    tpr_class_2[i] = tp_class_2 / (tp_class_2 + fn_class_2 + 1e-8)
+    fpr_class_2[i] = fp_class_2 / (fp_class_2 + tn_class_2 + 1e-8)
 
-# Plot RoC curve and confusion matrix
-fig, ax = plt.subplots(2, 1, figsize=(8, 16))
-ax[0].matshow(confusion_matrix, cmap='GnBu')
-ax[0].set_xlabel("Predicted")
-ax[0].set_ylabel("Actual")
-ax[0].set_title("Confusion Matrix")
+# Plot RoC curves and confusion matrix
+fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
+ax[0, 0].set_xlabel("Predicted")
+ax[0, 0].set_ylabel("Actual")
+ax[0, 0].set_title("Confusion Matrix")
 for (x, y), value in np.ndenumerate(confusion_matrix):
-    ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
+    ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
 
-ax[1].plot(fpr, tpr, marker='x')
-ax[1].set_xlabel("False positive rate")
-ax[1].set_ylabel("True positive rate")                     
-ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+ax[0, 1].plot(fpr_class_1, tpr_class_1, marker='x')
+ax[0, 1].set_xlabel("False positive rate")
+ax[0, 1].set_ylabel("True positive rate")                     
+ax[0, 1].set_title("ROC curve for class {}".format(class_1))
+
+ax[1, 0].plot(fpr_class_2, tpr_class_2, marker='x')
+ax[1, 0].set_xlabel("False positive rate")
+ax[1, 0].set_ylabel("True Positive rate")
+ax[1, 0].set_title("ROC curve for class {}".format(class_2))
+
+ax[1, 1].plot(fpr_class_1, tpr_class_1, marker='x', label="Class {}".format(class_1))
+ax[1, 1].plot(fpr_class_2, tpr_class_2, marker='o', label="Class {}".format(class_2))
+ax[1, 1].set_xlabel("False positive rate")
+ax[1, 1].set_ylabel("True positive rate")
+ax[1, 1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+ax[1, 1].legend()
 
 fig.tight_layout()
+plt.show()
 
 
 # ## Linear classifier using one vs all approach
 
-# In[27]:
+# In[232]:
 
 
 data = p3["train"]
@@ -830,49 +928,125 @@ z_test = np.dot(X_test, W)
 y_test_prob = np.exp(z_test) / np.sum(np.exp(z_test), axis=1, keepdims=True)
 y_test_pred = np.argmax(z_test, axis=1) + 1
 
+# # Choose two classes for ROC curve
+# class1 = 1
+# class2 = 2
+
+# # Compute false positive rate and true positive rate for different thresholds
+# fpr = []
+# tpr = []
+# num_thresholds = 100
+# for i in range(num_thresholds):
+#     threshold = i / num_thresholds
+#     tp = 0
+#     fp = 0
+#     tn = 0
+#     fn = 0
+#     for j in range(num_test_samples):
+#         if y_test_orig[j] == class1:
+#             if y_test_prob[j][class1-1] >= threshold:
+#                 tp += 1
+#             else:
+#                 fn += 1
+#         elif y_test_orig[j] == class2:
+#             if y_test_prob[j][class1-1] >= threshold:
+#                 fp += 1
+#             else:
+#                 tn += 1
+#     fpr.append(fp / (fp + tn))
+#     tpr.append(tp / (tp + fn))
+
+# # Plot RoC curve and confusion matrix
+# fig, ax = plt.subplots(2, 1, figsize=(8, 16))
+# ax[0].matshow(confusion_matrix, cmap='GnBu')
+# ax[0].set_xlabel("Predicted")
+# ax[0].set_ylabel("Actual")
+# ax[0].set_title("Confusion Matrix")
+# for (x, y), value in np.ndenumerate(confusion_matrix):
+#     ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
+
+# ax[1].plot(fpr, tpr, marker='x')
+# ax[1].set_xlabel("False positive rate")
+# ax[1].set_ylabel("True positive rate")                     
+# ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+
+# fig.tight_layout()
+# Choose two classes for ROC curve
+class1 = 1
+class2 = 2
+
 # Choose two classes for ROC curve
 class1 = 1
 class2 = 2
 
 # Compute false positive rate and true positive rate for different thresholds
-fpr = []
-tpr = []
+fpr_class1 = []
+tpr_class1 = []
+fpr_class2 = []
+tpr_class2 = []
 num_thresholds = 100
 for i in range(num_thresholds):
     threshold = i / num_thresholds
-    tp = 0
-    fp = 0
-    tn = 0
-    fn = 0
+    tp_class1 = 0
+    fp_class1 = 0
+    tn_class1 = 0
+    fn_class1 = 0
+    tp_class2 = 0
+    fp_class2 = 0
+    tn_class2 = 0
+    fn_class2 = 0
     for j in range(num_test_samples):
         if y_test_orig[j] == class1:
             if y_test_prob[j][class1-1] >= threshold:
-                tp += 1
+                tp_class1 += 1
             else:
-                fn += 1
+                fn_class1 += 1
         elif y_test_orig[j] == class2:
             if y_test_prob[j][class1-1] >= threshold:
-                fp += 1
+                fp_class2 += 1
             else:
-                tn += 1
-    fpr.append(fp / (fp + tn))
-    tpr.append(tp / (tp + fn))
+                tn_class2 += 1
+        if y_test_orig[j] == class2:
+            if y_test_prob[j][class2-1] >= threshold:
+                tp_class2 += 1
+            else:
+                fn_class2 += 1
+        elif y_test_orig[j] == class1:
+            if y_test_prob[j][class2-1] >= threshold:
+                fp_class1 += 1
+            else:
+                tn_class1 += 1
+    fpr_class1.append(fp_class1 / (fp_class1 + tn_class1))
+    tpr_class1.append(tp_class1 / (tp_class1 + fn_class1))
+    fpr_class2.append(fp_class2 / (fp_class2 + tn_class2))
+    tpr_class2.append(tp_class2 / (tp_class2 + fn_class2))
 
-# Plot RoC curve and confusion matrix
-fig, ax = plt.subplots(2, 1, figsize=(8, 16))
-ax[0].matshow(confusion_matrix, cmap='GnBu')
-ax[0].set_xlabel("Predicted")
-ax[0].set_ylabel("Actual")
-ax[0].set_title("Confusion Matrix")
+# Plot RoC curves and confusion matrix
+fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
+ax[0, 0].set_xlabel("Predicted")
+ax[0, 0].set_ylabel("Actual")
+ax[0, 0].set_title("Confusion Matrix")
 for (x, y), value in np.ndenumerate(confusion_matrix):
-    ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
+    ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
 
-ax[1].plot(fpr, tpr, marker='x')
-ax[1].set_xlabel("False positive rate")
-ax[1].set_ylabel("True positive rate")                     
-ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+ax[0, 1].plot(fpr_class1, tpr_class1, marker='x')
+ax[0, 1].set_xlabel("False positive rate")
+ax[0, 1].set_ylabel("True positive rate")                     
+ax[0, 1].set_title("ROC curve for class {}".format(class1))
 
-fig.tight_layout()
+ax[1, 0].plot(fpr_class2, tpr_class2, marker='x')
+ax[1, 0].set_xlabel("False positive rate")
+ax[1, 0].set_ylabel("True positive rate")                     
+ax[1, 0].set_title("ROC curve for class {}".format(class2))
+
+ax[1, 1].plot(fpr_class1, tpr_class1, marker='x', label=f"class {class1}")
+ax[1, 1].plot(fpr_class2, tpr_class2, marker='o', label=f"class {class2}")
+ax[1, 1].set_xlabel("False positive rate")
+ax[1, 1].set_ylabel("True positive rate")
+ax[1, 1].set_title("ROC curve for classes {} and {}".format(class1, class2))
+ax[1, 1].legend()
+plt.show()
 
 
 # # P4 (Multi-class classification)
@@ -898,13 +1072,13 @@ fig.tight_layout()
 
 # ## Data handling
 
-# In[28]:
+# In[245]:
 
 
 get_ipython().run_cell_magic('capture', '', '!unzip -n data/images.zip -d data')
 
 
-# In[29]:
+# In[246]:
 
 
 import os
@@ -925,7 +1099,7 @@ p4["data"] = np.array(data)
 p4["data"].shape
 
 
-# In[30]:
+# In[247]:
 
 
 fig, ax = plt.subplots(2, 5, figsize=(12, 4))
@@ -938,14 +1112,14 @@ for i in range(p4["data"].shape[0]):
 fig.tight_layout()
 
 
-# In[31]:
+# In[334]:
 
 
 def imgToFeatures(label, data, stats=False):
     X = np.array([x.flatten() for x in data]) / 255
     Y = label * np.ones(data.shape[0])
     if stats:
-        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0] }
+        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0], "data": X }
     return X, Y
 
 p4["splitData"] = [trainTestSplit(p4["data"], r, imgToFeatures) for r in [0.2, 0.3, 0.5, 0.7, 0.9]]
@@ -953,7 +1127,7 @@ p4["splitData"] = [trainTestSplit(p4["data"], r, imgToFeatures) for r in [0.2, 0
 
 # ## Naive Bayes
 
-# In[32]:
+# In[249]:
 
 
 p4["result"] = [[] for _ in range(5)]
@@ -961,7 +1135,7 @@ p4["result"] = [[] for _ in range(5)]
 
 # ### Test split -- 20:80
 
-# In[33]:
+# In[250]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][0], naiveLogNormal)
@@ -969,7 +1143,7 @@ p4["result"][0] = metrics.print(*p4["splitData"][0], naiveLogNormal)
 
 # ### Test split -- 30:70
 
-# In[34]:
+# In[251]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][1], naiveLogNormal)
@@ -977,7 +1151,7 @@ p4["result"][0] = metrics.print(*p4["splitData"][1], naiveLogNormal)
 
 # ### Test split -- 50:50
 
-# In[35]:
+# In[252]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][2], naiveLogNormal)
@@ -985,7 +1159,7 @@ p4["result"][0] = metrics.print(*p4["splitData"][2], naiveLogNormal)
 
 # ### Test split -- 70:30
 
-# In[36]:
+# In[253]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][3], naiveLogNormal)
@@ -993,7 +1167,7 @@ p4["result"][0] = metrics.print(*p4["splitData"][3], naiveLogNormal)
 
 # ### Test split -- 90:10
 
-# In[37]:
+# In[254]:
 
 
 p4["result"][0] = metrics.print(*p4["splitData"][4], naiveLogNormal)
@@ -1001,21 +1175,21 @@ p4["result"][0] = metrics.print(*p4["splitData"][4], naiveLogNormal)
 
 # ## GMM
 
-# In[ ]:
+# In[335]:
 
 
-def printGmm(data, number_of_guassians=5):
+def printGmm(data, number_of_guassians=2):
     classStatsGMM = {}
     for label in data[-1]:
-        classStatsGMM[label] = { "prior": classStats[label]["prior"] }
-        classStatsGMM[label]["weights"], classStatsGMM[label]["mean"], classStatsGMM[label]["cov"] = em(classStats[label]["data"], number_of_guassians, 50)
+        classStatsGMM[label] = { "prior": data[-1][label]["prior"] }
+        classStatsGMM[label]["weights"], classStatsGMM[label]["mean"], classStatsGMM[label]["cov"] = em(data[-1][label]["data"], number_of_guassians, 50)
 
     metrics.print(*data[:-1], classStatsGMM, logGMM, result=False)
 
 
 # ### Test split -- 20:80
 
-# In[ ]:
+# In[336]:
 
 
 printGmm(p4["splitData"][0])
@@ -1031,7 +1205,7 @@ printGmm(p4["splitData"][1])
 
 # ### Test split -- 50:50
 
-# In[ ]:
+# In[342]:
 
 
 printGmm(p4["splitData"][2])
@@ -1055,7 +1229,7 @@ printGmm(p4["splitData"][4])
 
 # ## Logistic Regression
 
-# In[38]:
+# In[223]:
 
 
 def logisticRegressor(data):
@@ -1159,48 +1333,70 @@ def logisticRegressor(data):
     print(f1_scores)
 
     # Choose two classes
-    class_1 = 5
-    class_2 = 3
-
+    class_1 = 1
+    class_2 = 2
     # Get predicted probabilities for the two classes
     y_class_1 = y_pred == class_1
     y_class_2 = y_pred == class_2
     y_prob_1 = softmax(z)[:, class_1 - 1]
     y_prob_2 = softmax(z)[:, class_2 - 1]
 
-    # Compute true positive rate and false positive rate
+    # Compute true positive rate and false positive rate for both classes
     num_thresholds = 100
-    tpr = np.zeros(num_thresholds)
-    fpr = np.zeros(num_thresholds)
+    tpr_class_1 = np.zeros(num_thresholds)
+    fpr_class_1 = np.zeros(num_thresholds)
+    tpr_class_2 = np.zeros(num_thresholds)
+    fpr_class_2 = np.zeros(num_thresholds)
+
     for i in range(num_thresholds):
         threshold = i / (num_thresholds - 1)
-        tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
-        fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
-        tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-        fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
-        tpr[i] = tp / (tp + fn + 1e-8)
-        fpr[i] = fp / (fp + tn + 1e-8)
+        tp_class_1 = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
+        fn_class_1 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
+        tn_class_1 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+        fp_class_1 = np.sum((y_prob_2 >= threshold) & (y_class_2 == False))
+        tpr_class_1[i] = tp_class_1 / (tp_class_1 + fn_class_1 + 1e-8)
+        fpr_class_1[i] = fp_class_1 / (fp_class_1 + tn_class_1 + 1e-8)
 
-    # Plot RoC curve and confusion matrix
-    fig, ax = plt.subplots(2, 1, figsize=(10, 20))
-    ax[0].matshow(confusion_matrix, cmap='GnBu')
-    ax[0].set_xlabel("Predicted")
-    ax[0].set_ylabel("Actual")
-    ax[0].set_title("Confusion Matrix")
+        tp_class_2 = np.sum((y_prob_2 >= threshold) & (y_class_2 == True))
+        fn_class_2 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
+        tn_class_2 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
+        fp_class_2 = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
+        tpr_class_2[i] = tp_class_2 / (tp_class_2 + fn_class_2 + 1e-8)
+        fpr_class_2[i] = fp_class_2 / (fp_class_2 + tn_class_2 + 1e-8)
+
+    # Plot RoC curves and confusion matrix
+    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+    ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
+    ax[0, 0].set_xlabel("Predicted")
+    ax[0, 0].set_ylabel("Actual")
+    ax[0, 0].set_title("Confusion Matrix")
     for (x, y), value in np.ndenumerate(confusion_matrix):
-        ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
-    
-    ax[1].plot(fpr, tpr, marker='x')
-    ax[1].set_xlabel("False positive rate")
-    ax[1].set_ylabel("True positive rate")                     
-    ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
-    
+        ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
+
+    ax[0, 1].plot(fpr_class_1, tpr_class_1, marker='x')
+    ax[0, 1].set_xlabel("False positive rate")
+    ax[0, 1].set_ylabel("True positive rate")                     
+    ax[0, 1].set_title("ROC curve for class {}".format(class_1))
+
+    ax[1, 0].plot(fpr_class_2, tpr_class_2, marker='x')
+    ax[1, 0].set_xlabel("False positive rate")
+    ax[1, 0].set_ylabel("True Positive rate")
+    ax[1, 0].set_title("ROC curve for class {}".format(class_2))
+
+    ax[1, 1].plot(fpr_class_1, tpr_class_1, marker='x', label="Class {}".format(class_1))
+    ax[1, 1].plot(fpr_class_2, tpr_class_2, marker='o', label="Class {}".format(class_2))
+    ax[1, 1].set_xlabel("False positive rate")
+    ax[1, 1].set_ylabel("True positive rate")
+    ax[1, 1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+    ax[1, 1].legend()
+
     fig.tight_layout()
+    plt.show()
 
 
 # ### Test split -- 20:80
 
-# In[39]:
+# In[224]:
 
 
 logisticRegressor(p4["splitData"][0])
@@ -1208,7 +1404,7 @@ logisticRegressor(p4["splitData"][0])
 
 # ### Test split -- 30:70
 
-# In[40]:
+# In[225]:
 
 
 logisticRegressor(p4["splitData"][1])
@@ -1216,7 +1412,7 @@ logisticRegressor(p4["splitData"][1])
 
 # ### Test split -- 50:50
 
-# In[41]:
+# In[227]:
 
 
 logisticRegressor(p4["splitData"][2])
@@ -1224,7 +1420,7 @@ logisticRegressor(p4["splitData"][2])
 
 # ### Test split -- 70:30
 
-# In[42]:
+# In[ ]:
 
 
 logisticRegressor(p4["splitData"][3])
@@ -1232,7 +1428,7 @@ logisticRegressor(p4["splitData"][3])
 
 # ### Test split -- 90:10
 
-# In[43]:
+# In[228]:
 
 
 logisticRegressor(p4["splitData"][4])
@@ -1246,26 +1442,26 @@ logisticRegressor(p4["splitData"][4])
 
 # ## Data handling
 
-# In[50]:
+# In[256]:
 
 
 p5["data"] = np.genfromtxt(dataFolder + "/PCA_MNIST.csv", delimiter=',')[1:]
 
 
-# In[51]:
+# In[204]:
 
 
 p5["data"].shape
 
 
-# In[52]:
+# In[337]:
 
 
 def stats(label, data, stats=False):
     X = data
     Y = label * np.ones(data.shape[0])
     if stats:
-        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0] }
+        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0], "data": X }
     return X, Y
 
 classWiseData = [[] for _ in range(10)]
@@ -1278,7 +1474,7 @@ p5["splitData"] = [trainTestSplit(np.array(classWiseData), r, stats) for r in [0
 
 # ## Naive Bayes
 
-# In[53]:
+# In[257]:
 
 
 p5["result"] = [[] for _ in range(5)]
@@ -1286,7 +1482,7 @@ p5["result"] = [[] for _ in range(5)]
 
 # ### Test split -- 20:80
 
-# In[54]:
+# In[258]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][0], naiveLogNormal)
@@ -1294,7 +1490,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][0], naiveLogNormal)
 
 # ### Test split -- 30:70
 
-# In[55]:
+# In[ ]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][1], naiveLogNormal)
@@ -1302,7 +1498,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][1], naiveLogNormal)
 
 # ### Test split -- 50:50
 
-# In[56]:
+# In[259]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][2], naiveLogNormal)
@@ -1310,7 +1506,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][2], naiveLogNormal)
 
 # ### Test split -- 70:30
 
-# In[57]:
+# In[ ]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][3], naiveLogNormal)
@@ -1318,7 +1514,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][3], naiveLogNormal)
 
 # ### Test split -- 90:10
 
-# In[58]:
+# In[260]:
 
 
 p5["result"][0] = metrics.print(*p5["splitData"][4], naiveLogNormal)
@@ -1328,7 +1524,7 @@ p5["result"][0] = metrics.print(*p5["splitData"][4], naiveLogNormal)
 
 # ### Test split -- 20:80
 
-# In[ ]:
+# In[338]:
 
 
 printGmm(p5["splitData"][0])
@@ -1344,7 +1540,7 @@ printGmm(p5["splitData"][1])
 
 # ### Test split -- 50:50
 
-# In[ ]:
+# In[340]:
 
 
 printGmm(p5["splitData"][2])
@@ -1360,7 +1556,7 @@ printGmm(p5["splitData"][3])
 
 # ### Test split -- 90:10
 
-# In[ ]:
+# In[341]:
 
 
 printGmm(p5["splitData"][4])
@@ -1368,7 +1564,7 @@ printGmm(p5["splitData"][4])
 
 # ## Logistic Regression
 
-# In[59]:
+# In[270]:
 
 
 def logisticRegressor(data):
@@ -1458,8 +1654,8 @@ def logisticRegressor(data):
         true_class = int(y_test_orig[i] - 1)
         predicted_class = int(y_pred[i] - 1)
         confusion_matrix[true_class, predicted_class] += 1
-    # print('Confusion matrix:')
-    # print(confusion_matrix)
+    print('Confusion matrix:')
+    print(confusion_matrix)
 
     num_classes = len(np.unique(y_test_orig))
     f1_scores = np.zeros(num_classes)
@@ -1473,49 +1669,80 @@ def logisticRegressor(data):
     print('Class-wise F1 score:')
     print(f1_scores)
 
-    # Choose two classes
-    class_1 = 5
-    class_2 = 3
+
+
+
+
+ # Choose two classes
+    class_1 = 1
+    class_2 = 2
 
     # Get predicted probabilities for the two classes
-    y_class_1 = y_pred == class_1
-    y_class_2 = y_pred == class_2
-    y_prob_1 = softmax(z)[:, class_1 - 1]
-    y_prob_2 = softmax(z)[:, class_2 - 1]
+    y_class_1 = y_test_orig == class_1
+    y_class_2 = y_test_orig == class_2
+    y_prob_1 = softmax(z_test)[:, class_1 - 1]
+    y_prob_2 = softmax(z_test)[:, class_2 - 1]
 
-    # Compute true positive rate and false positive rate
+    # Compute true positive rate and false positive rate for both classes
     num_thresholds = 100
-    tpr = np.zeros(num_thresholds)
-    fpr = np.zeros(num_thresholds)
+    tpr_class_1 = np.zeros(num_thresholds)
+    fpr_class_1 = np.zeros(num_thresholds)
+    tpr_class_2 = np.zeros(num_thresholds)
+    fpr_class_2 = np.zeros(num_thresholds)
+
     for i in range(num_thresholds):
         threshold = i / (num_thresholds - 1)
-        tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
-        fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
-        tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-        fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
-        tpr[i] = tp / (tp + fn + 1e-8)
-        fpr[i] = fp / (fp + tn + 1e-8)
+        tp_class_1 = np.sum(y_class_1 & (y_prob_1 > threshold))
+        fp_class_1 = np.sum(~y_class_1 & (y_prob_1 > threshold))
+        tn_class_1 = np.sum(~y_class_1 & (y_prob_1 <= threshold))
+        fn_class_1 = np.sum(y_class_1 & (y_prob_1 <= threshold))
+        tpr_class_1[i] = tp_class_1 / (tp_class_1 + fn_class_1)
+        fpr_class_1[i] = fp_class_1 / (fp_class_1 + tn_class_1)
 
-    # Plot RoC curve and confusion matrix
-    fig, ax = plt.subplots(2, 1, figsize=(10, 20))
-    ax[0].matshow(confusion_matrix, cmap='GnBu')
-    ax[0].set_xlabel("Predicted")
-    ax[0].set_ylabel("Actual")
-    ax[0].set_title("Confusion Matrix")
+        tp_class_2 = np.sum(y_class_2 & (y_prob_2 > threshold))
+        fp_class_2 = np.sum(~y_class_2 & (y_prob_2 > threshold))
+        tn_class_2 = np.sum(~y_class_2 & (y_prob_2 <= threshold))
+        fn_class_2 = np.sum(y_class_2 & (y_prob_2 <= threshold))
+        tpr_class_2[i] = tp_class_2 / (tp_class_2 + fn_class_2)
+        fpr_class_2[i] = fp_class_2 / (fp_class_2 + tn_class_2)
+        
+    
+    # Plot RoC curves and confusion matrix
+    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
+    ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
+    ax[0, 0].set_xlabel("Predicted")
+    ax[0, 0].set_ylabel("Actual")
+    ax[0, 0].set_title("Confusion Matrix")
     for (x, y), value in np.ndenumerate(confusion_matrix):
-        ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
-    
-    ax[1].plot(fpr, tpr, marker='x')
-    ax[1].set_xlabel("False positive rate")
-    ax[1].set_ylabel("True positive rate")                     
-    ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
-    
+        ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
+
+
+    ax[0, 1].plot(fpr_class_1, tpr_class_1, marker='x')
+    ax[0, 1].set_xlabel("False positive rate")
+    ax[0, 1].set_ylabel("True positive rate")                     
+    ax[0, 1].set_title("ROC curve for class {}".format(class_1))
+
+    ax[1, 0].plot(fpr_class_2, tpr_class_2, marker='x')
+    ax[1, 0].set_xlabel("False positive rate")
+    ax[1, 0].set_ylabel("True Positive rate")
+    ax[1, 0].set_title("ROC curve for class {}".format(class_2))
+
+    ax[1, 1].plot(fpr_class_1, tpr_class_1, marker='x', label="Class {}".format(class_1))
+    ax[1, 1].plot(fpr_class_2, tpr_class_2, marker='o', label="Class {}".format(class_2))
+    ax[1, 1].set_xlabel("False positive rate")
+    ax[1, 1].set_ylabel("True positive rate")
+    ax[1, 1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
+    ax[1, 1].legend()
+
     fig.tight_layout()
+    plt.show()
+
+
 
 
 # ### Test split -- 20:80
 
-# In[60]:
+# In[271]:
 
 
 logisticRegressor(p5["splitData"][0])
@@ -1523,7 +1750,7 @@ logisticRegressor(p5["splitData"][0])
 
 # ### Test split -- 30:70
 
-# In[61]:
+# In[272]:
 
 
 logisticRegressor(p5["splitData"][1])
@@ -1531,7 +1758,7 @@ logisticRegressor(p5["splitData"][1])
 
 # ### Test split -- 50:50
 
-# In[62]:
+# In[273]:
 
 
 logisticRegressor(p5["splitData"][2])
@@ -1539,7 +1766,7 @@ logisticRegressor(p5["splitData"][2])
 
 # ### Test split -- 70:30
 
-# In[63]:
+# In[274]:
 
 
 logisticRegressor(p5["splitData"][3])
@@ -1547,8 +1774,14 @@ logisticRegressor(p5["splitData"][3])
 
 # ### Test split -- 90:10
 
-# In[64]:
+# In[275]:
 
 
 logisticRegressor(p5["splitData"][4])
+
+
+# In[ ]:
+
+
+
 
