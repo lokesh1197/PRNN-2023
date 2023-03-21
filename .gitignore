@@ -1,5 +1,1 @@
-/.ipynb_checkpoints/
-*.el
-*.aux
-*.log
-*.out
+data/*
