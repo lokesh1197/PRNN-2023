@@ -253,7 +253,7 @@ class metrics:
 # 
 # **DATA:** `p3train/test.csv`, `images.zip (p4[data])`
 
-# In[15]:
+# In[13]:
 
 
 # slack: -c 
@@ -262,29 +262,47 @@ class metrics:
 def svmClassify(X, Y, X_test, Y_test, C, gamma, kernel):
     W = svm_train(Y, X, f"-c {C} -g {gamma} -t {kernel}")
     p_label, p_acc, p_val = svm_predict(Y_test, X_test, W)
-    return p_acc[0]
+    acc = metrics.accuracy(p_label, Y_test)
+    cm = metrics.confusionMatrix(p_label, Y_test, n_labels)
+    f1 = metrics.f1Score(cm)
+    return acc, f1
+
+def svmOneVsAll(X, Y, X_test, Y_test, C, gamma, kernel):
+    W = []
+    n_labels = np.unique(Y).size
+    for i in range(n_labels):
+        W.append(svm_train(Y == i, X, f"-c {C} -g {gamma} -t {kernel}"))
+    p_label = []
+    for i in range(X_test.shape[0]):
+        p_label.append(np.argmax([svm_predict([Y_test[i]], [X_test[i]], W[j])[0][0] for j in range(n_labels)]))
+
+    acc = metrics.accuracy(p_label, Y_test)
+    cm = metrics.confusionMatrix(p_label, Y_test, n_labels)
+    f1 = metrics.f1Score(cm)
+    return acc, f1
 
 def svmGridSearch(X, Y, X_test, Y_test, C, gamma, kernel):
     best_acc = 0
     best_C = 0
     best_gamma = 0
+    best_f1 = 0
     for c in C:
         for g in gamma:
-            acc = svmClassify(X, Y, X_test, Y_test, c, g, kernel)
+            acc, f1 = svmOneVsAll(X, Y, X_test, Y_test, c, g, kernel)
             if acc > best_acc:
                 best_acc = acc
                 best_C = c
                 best_gamma = g
-    return best_acc, best_C, best_gamma
+    return best_acc, best_f1, best_C, best_gamma
 
 
-# In[16]:
+# In[14]:
 
 
 # Hyperparameters
-C = [0, 100]   # 0 -> without slack, 100 -> with slack
-G = [0.1, 0.5, 1]
-kernels = [0, 1, 2]
+C = [1, 10, 50, 100]       # slack
+G = [0.1, 0.5, 1, 10, 50]  # gamma
+kernel = [0, 1, 2]         # kernel
 
 
 # ## P3 Data
@@ -294,9 +312,9 @@ kernels = [0, 1, 2]
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[0])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[0])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # ### Polynomial Kernel
@@ -304,9 +322,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[1])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[1])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # ### Radial basis Kernel
@@ -314,9 +332,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[2])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[2])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # ## P4 Data
@@ -326,9 +344,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[0])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[0])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g) 
 
 
 # ### Polynomial Kernel
@@ -336,9 +354,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[1])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[1])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # ### Radial basis Kernel
@@ -346,9 +364,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[2])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[2])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # ## P5 Data
@@ -358,9 +376,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[0])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[0])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # ### Polynomial Kernel
@@ -368,9 +386,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[1])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[1])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # ### Radial basis Kernel
@@ -378,9 +396,9 @@ print("Tuned parameters: C = ", c, ", gamma = ", g)
 # In[ ]:
 
 
-acc, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[2])
-print("       Accuracy : ", acc)
-print("Tuned parameters: C = ", c, ", gamma = ", g) 
+acc, f1, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[2])
+print("        Accuracy : ", acc, "\t f1_score : ", f1)
+print("Tuned parameters : C = ", c, ", gamma = ", g)
 
 
 # # P2 (FLDA)
