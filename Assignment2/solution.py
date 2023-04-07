@@ -253,27 +253,11 @@ class metrics:
 # 
 # **DATA:** `p3train/test.csv`, `images.zip (p4[data])`
 
-# In[28]:
+# In[511]:
 
 
-np.unique(Y)
-
-
-# In[10]:
-
-
-# https://www.csie.ntu.edu.tw/~cjlin/libsvm/
-# https://github.com/prathmachowksey/Fisher-Linear-Discriminant-Analysis/blob/master/fisher_lda.ipynb
-# https://python-course.eu/machine-learning/linear-discriminant-analysis-in-python.php
-
-X, Y = parseData(p3["train"])
-X_test, Y_test = parseData(p3["test"])
-Y, Y_test = Y - 1, Y_test - 1
-labels = np.unique(Y)
-
-# Initialise the parameters to be a null vector
-W = svm_train(Y, X)
-p_label, p_acc, p_val = svm_predict(Y_test, X_test, W)
+W = svm_train(p3['Y'], p3['X'])
+p_label, p_acc, p_val = svm_predict(p3['Y_test'], p3['X_test'], W)
 
 p_acc
 
@@ -403,133 +387,150 @@ metrics.print(pred, p5["Y"], pred_test, p5["Y_test"])
 # 
 # **DATA**: `p1train/test.csv`
 
-# In[158]:
+# In[489]:
 
 
 # Compute mean squared error
 def mse(X, Y, W):
     return (1/len(Y)) * (X @ W - Y) @ (X @ W - Y)
 
-# Print the required metrics
-def regression(x_train, y_train, x_test, y_test, func = lambda x : x):
+def regression(x_train, y_train, x_test, y_test, func = lambda x : x, l1 = 0, l2 = 0, epochs = 100, alpha = 0.0001):
     x_train = func(x_train)
     x_test = func(x_test)
     
     m, n = x_train.shape
-    w = np.linalg.pinv(x_train) @ y_train
+    
+    optionalString = ""
+    
+    if l1 == 0 and l2 == 0:
+        w = np.linalg.pinv(x_train) @ y_train
+    elif l1 == 0 and l2 != 0:
+        w = np.linalg.pinv((x_train.T @ x_train) + l2 * np.eye(n, n)) @ x_train.T @ y_train
+        optionalString = f" \tl2: {l2}"
+    else:
+        w = np.linalg.pinv((x_train.T @ x_train) + l2 * np.eye(n, n)) @ (x_train.T @ y_train)
+        w = np.linalg.pinv((x_train.T @ x_train) + l2 * np.eye(n, n)) @ (x_train.T @ y_train - l1 * np.sign(w))
+        # w = np.linalg.pinv(x_train) @ y_train
+        # for i in range(epochs):
+        #     w -= alpha * (2 * x_train.T @ (x_train @ w - y_train) + l2 * w + l1 * np.sign(w)) / m
+        optionalString = f" \tl1: {l1}" + (f" \tl2: {l2}" if l2 != 0 else "")
 
     mse_train = mse(x_train, y_train, w)
-    mae_train = mae(x_train, y_train, w)
-    p_train = ttest_ind(x_train @ w, y_train).pvalue
     mse_test = mse(x_test, y_test, w)
-    mae_test = mae(x_test, y_test, w)
-    p_test = ttest_ind(x_test @ w, y_test).pvalue
-    
-    print("MSE (train-split)     : ", mse_train)
-    print("MAE (train-split)     : ", mae_train)
-    print("p-value (train-split) : ", p_train)
+        
+    print("MSE (train): ", mse_train, optionalString)
+    print("MSE        : ", mse_test, optionalString)
+    return [mse_train, mse_test]
 
-    print("--------------------------------------")
-
-    print("a) MSE     : ", mse_test)
-    print("b) MAE     : ", mae_test)
-    print("c) p-value : ", p_test)
-    return [mse_train, mae_train, p_train], [mse_test, mae_test, p_test]
+def regularizedRegression(X, Y, X_test, Y_test, func = lambda x : x, l1 = 0.01, l2 = 0.01):
+    r1 = regression(X, Y, X_test, Y_test, func)
+    r2 = regression(X, Y, X_test, Y_test, func, l1=l1)
+    r3 = regression(X, Y, X_test, Y_test, func, l2=l2)
+    r4 = regression(X, Y, X_test, Y_test, func, l1=l1, l2=l2)
+    return [r1, r2, r3, r4]
 
 
-# In[75]:
+# In[490]:
 
 
-X, Y = parseData(p1["train"])
-X_test, Y_test = parseData(p1["test"])
+X, Y = np.c_[np.ones(p1["train"].shape[0]), p1["train"][:, :-1]], p1["train"][:, -1]
+X_test, Y_test = np.c_[np.ones(p1["test"].shape[0]), p1["test"][:, :-1]], p1["test"][:, -1]
 
 # Uniform distribution
 p3["result"] = [[] for _ in range(9)]
-p3["result"][0] = printResult(X, Y, X_test, Y_test, lambda x : np.ones(x.shape[0]).reshape(x.shape[0], 1))
+p3["result"][0] = regression(X, Y, X_test, Y_test, lambda x : np.ones(x.shape[0]).reshape(x.shape[0], 1))
 
 
-# In[76]:
+# ## Linear regression
+
+# In[491]:
 
 
-p3["result"][1] = printResult(X, Y, X_test, Y_test)
+p3["result"][1] = regularizedRegression(X, Y, X_test, Y_test)
 
 
-# In[77]:
+# ## Quadratic regression
+
+# In[492]:
 
 
 def makeQuadratic(data):
     n = data.shape[1]
     return np.array([data.T[i] * data.T[j] for i in range(n) for j in range(n) if j <= i]).T
 
-p3["result"][2] = printResult(X, Y, X_test, Y_test, makeQuadratic)
+p3["result"][2] = regularizedRegression(X, Y, X_test, Y_test, makeQuadratic)
 
 
-# In[78]:
+# ## Cubic regression
+
+# In[493]:
 
 
 def makeCubic(data):
     n = data.shape[1]
     return np.array([data.T[i] * data.T[j] * data.T[k] for i in range(n) for j in range(n) for k in range(n) if j <= i and k <= j]).T
 
-p3["result"][3] = printResult(X, Y, X_test, Y_test, makeCubic)
+p3["result"][3] = regularizedRegression(X, Y, X_test, Y_test, makeCubic)
 
 
-# ## Non-Linear regression (4)
+# ## Non-Linear regression (degree: 4)
 # $h_3(x) = h_1(h_1(x))$
 
-# In[79]:
+# In[494]:
 
 
-p3["result"][4] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(x)))
+p3["result"][4] = regularizedRegression(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(x)))
 
 
-# ## Non-Linear regression (5)
+# ## Non-Linear regression (degree: 5)
 # $h_4(x) = h_1(h_2(x))$
 
-# In[80]:
+# In[495]:
 
 
-p3["result"][5] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeCubic(x)))
+p3["result"][5] = regularizedRegression(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeCubic(x)))
 
 
-# ## Non-Linear regression (6)
+# ## Non-Linear regression (degree: 6)
 # $h_5(x) = h_2(h_2(x))$
 
-# In[81]:
+# In[496]:
 
 
-p3["result"][6] = printResult(X, Y, X_test, Y_test, lambda x : makeCubic(makeCubic(x)))
+p3["result"][6] = regularizedRegression(X, Y, X_test, Y_test, lambda x : makeCubic(makeCubic(x)))
 
 
-# ## Non-Linear regression (7)
+# ## Non-Linear regression (degree: 7)
 # $h_6(x) = h_1(h_1(h_2(x)))$
 
-# In[90]:
+# In[487]:
 
 
-p3["result"][7] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(makeCubic(x))))
+p3["result"][7] = regularizedRegression(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(makeCubic(x))))
 
 
-# ## Non-Linear regression (8)
-# $h_7(x) = h_1(h_1(h_1(h_1(x))))$
-
-# In[ ]:
+# In[497]:
 
 
-p3["result"][8] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(makeQuadratic(makeQuadratic(x)))))
-
-
-# In[89]:
-
-
-results = np.array(p3["result"])[1:7]
-fig, ax = plt.subplots(1, 1, figsize=(5, 4))
-ax.plot([i + 1 for i in range(6)], [((row[0][0])) for row in results], label="train", marker='o')
-ax.plot([i + 1 for i in range(6)], [((row[1][0])) for row in results], label="test", marker='x')
+count = 6
+results = np.array(p3["result"][1:count+1])
+fig, [ax, ax1] = plt.subplots(1, 2, figsize=(10, 4))
+ax.plot([i + 1 for i in range(count)], results[:, 0, 0], label="train", marker='o')
+ax.plot([i + 1 for i in range(count)], results[:, 0, 1], label="test", marker='x')
 ax.set_xlabel("Complexity -->")
 ax.set_ylabel("MSE")
 ax.legend()
 ax.set_title("MSE vs complexity")
+
+# ax1.plot([i + 1 for i in range(count)], results[:, 0, 0], label="train", marker='o')
+ax1.plot([i + 1 for i in range(count)], results[:, 0, 1], label="test", marker='x')
+ax1.plot([i + 1 for i in range(count)], results[:, 1, 1], label="test with l1", marker='v')
+ax1.plot([i + 1 for i in range(count)], results[:, 2, 1], label="test with l2", marker='*')
+ax1.plot([i + 1 for i in range(count)], results[:, 3, 1], label="test with l1, l2", marker='.')
+ax1.set_xlabel("Complexity -->")
+ax1.set_ylabel("MSE")
+ax1.legend()
+ax1.set_title("MSE vs complexity")
 
 fig.tight_layout()
 
@@ -699,6 +700,229 @@ class MLP:
         return train_losses, val_losses, train_accs, val_accs
 
 
+# ## 2. CNN
+
+# In[500]:
+
+
+class Conv3x3:
+  def __init__(self, num_filters):
+    self.num_filters = num_filters
+    self.filters = np.random.randn(num_filters, 3, 3) / 9
+
+  def iterate_regions(self, image):
+    h, w = image.shape
+    for i in range(h - 2):
+      for j in range(w - 2):
+        im_region = image[i:(i + 3), j:(j + 3)]
+        yield im_region, i, j
+
+  def forward(self, input):
+    self.last_input = input
+    h, w = input.shape
+
+    output = np.zeros((h - 2, w - 2, self.num_filters))
+
+    for im_region, i, j in self.iterate_regions(input):
+      output[i, j] = np.sum(im_region * self.filters, axis=(1, 2))
+
+    return output
+
+  def backprop(self, d_L_d_out, learn_rate):
+    d_L_d_filters = np.zeros(self.filters.shape)
+    for im_region, i, j in self.iterate_regions(self.last_input):
+      for f in range(self.num_filters):
+        d_L_d_filters[f] += d_L_d_out[i, j, f] * im_region
+
+    self.filters -= learn_rate * d_L_d_filters
+    pass
+
+
+# In[501]:
+
+
+class MaxPool2:
+  def iterate_regions(self, image):
+    h, w, _ = image.shape
+    new_h = h // 2
+    new_w = w // 2
+
+    for i in range(new_h):
+      for j in range(new_w):
+        im_region = image[(i * 2):(i * 2 + 2), (j * 2):(j * 2 + 2)]
+        yield im_region, i, j
+
+  def forward(self, input):
+    self.last_input = input
+
+    h, w, num_filters = input.shape
+    output = np.zeros((h // 2, w // 2, num_filters))
+
+    for im_region, i, j in self.iterate_regions(input):
+      output[i, j] = np.amax(im_region, axis=(0, 1))
+
+    return output
+
+  def backprop(self, d_L_d_out):
+    d_L_d_input = np.zeros(self.last_input.shape)
+
+    for im_region, i, j in self.iterate_regions(self.last_input):
+      h, w, f = im_region.shape
+      amax = np.amax(im_region, axis=(0, 1))
+
+      for i2 in range(h):
+        for j2 in range(w):
+          for f2 in range(f):
+            if im_region[i2, j2, f2] == amax[f2]:
+              d_L_d_input[i * 2 + i2, j * 2 + j2, f2] = d_L_d_out[i, j, f2]
+
+    return d_L_d_input
+
+
+# In[502]:
+
+
+class AvgPool2:
+    def iterate_regions(self, image):
+        h, w, _ = image.shape
+        new_h = h // 2
+        new_w = w // 2
+
+        for i in range(new_h):
+            for j in range(new_w):
+                im_region = image[(i * 2):(i * 2 + 2), (j * 2):(j * 2 + 2)]
+                yield im_region, i, j
+
+    def forward(self, input):
+        self.last_input = input
+
+        h, w, num_filters = input.shape
+        output = np.zeros((h // 2, w // 2, num_filters))
+
+        for im_region, i, j in self.iterate_regions(input):
+            output[i, j] = np.mean(im_region, axis=(0, 1))
+
+        return output
+
+    def backprop(self, d_L_d_out):
+        d_L_d_input = np.zeros(self.last_input.shape)
+
+        for im_region, i, j in self.iterate_regions(self.last_input):
+            h, w, f = im_region.shape
+            avg = np.mean(im_region, axis=(0, 1))
+
+            for i2 in range(h):
+                for j2 in range(w):
+                    for f2 in range(f):
+                        d_L_d_input[i * 2 + i2, j * 2 + j2, f2] += d_L_d_out[i, j, f2] / (2*2)
+
+        return d_L_d_input
+
+
+# In[503]:
+
+
+class Softmax:
+  def __init__(self, input_len, nodes):
+    self.weights = np.random.randn(input_len, nodes) / input_len
+    self.biases = np.zeros(nodes)
+
+  def forward(self, input):
+    self.last_input_shape = input.shape
+    input = input.flatten()
+    self.last_input = input
+
+    input_len, nodes = self.weights.shape
+    totals = np.dot(input, self.weights) + self.biases
+    self.last_totals = totals
+    exp = np.exp(totals)
+    return exp / np.sum(exp, axis=0)
+
+  def backprop(self, d_L_d_out, learn_rate):
+    for i, gradient in enumerate(d_L_d_out):
+      if gradient == 0:
+        continue
+
+      t_exp = np.exp(self.last_totals)
+      S = np.sum(t_exp)
+
+      d_out_d_t = -t_exp[i] * t_exp / (S ** 2)
+      d_out_d_t[i] = t_exp[i] * (S - t_exp[i]) / (S ** 2)
+
+      d_t_d_w = self.last_input
+      d_t_d_b = 1
+      d_t_d_inputs = self.weights
+
+      d_L_d_t = gradient * d_out_d_t
+
+      d_L_d_w = d_t_d_w[np.newaxis].T @ d_L_d_t[np.newaxis]
+      d_L_d_b = d_L_d_t * d_t_d_b
+      d_L_d_inputs = d_t_d_inputs @ d_L_d_t
+
+      self.weights -= learn_rate * d_L_d_w
+      self.biases -= learn_rate * d_L_d_b
+
+      return d_L_d_inputs.reshape(self.last_input_shape)
+
+
+# In[510]:
+
+
+class layer_activation:    
+    def __init__(self,activation='sigmoid'):
+        self.act = activation
+        return
+    
+    def relu(self,x):
+        return x * (x > 0)
+
+    def grad_relu(self,x):
+        return 1. * (x > 0)
+
+    def tanh(self,x):
+        return (2.0/(1.0 + np.exp(-2.0*x))) - 1
+
+    def grad_tanh(self,x):
+        y = self.tanh(x)
+        return (1.0-(y**2))
+
+    def sigmoid(self,x):
+        return 1.0/(1.0 + np.exp(-1.0*x))
+
+    def grad_sigmoid(self,x):
+        y = self.sigmoid(x)
+        return y*(1.0-y)
+
+    act_dispatcher = {'sigmoid' : sigmoid, 'tanh': tanh, 'relu' : relu}
+    act_grad_dispatcher = {'sigmoid' : grad_sigmoid, 'tanh': grad_tanh, 'relu' : grad_relu}
+    
+    def call_activation(self, x, func):
+        try:
+            return self.act_dispatcher[func](self, x)
+        except:
+            return "Invalid activation function"
+
+    def call_grad_activation(self, x, func):
+        try:
+            return self.act_grad_dispatcher[func](self, x)
+        except:
+            return "Invalid grad activation function"
+    
+    def forward_pass(self,X):
+        self.x_in = X
+        self.out = self.call_activation(X, self.act)
+
+        return self.out
+    
+    def backward_pass(self,delta):        
+        delta_prev = np.multiply(delta,self.call_grad_activation(self.x_in, self.act))
+                
+        return delta_prev
+    
+    def output_shape(self, x):        
+        return x
+
+
 # # P4 (Neural Networks, MLP)
 # 
 # - Construct a Multi-layer Perception (MLP) or a feed-forward neural network to work on the K-MNIST dataset. 
@@ -786,10 +1010,212 @@ for i in range(4):
 # 
 # **DATA:** `images.zip (p4[data])`
 
-# In[ ]:
+# ## Data Handling
+
+# In[498]:
 
 
+p4["full_data"] = genFromImage(imageDir, (28, 28))
+p4X, p4Y, p4Xt, p4Yt, _ = trainTestSplit(p4["full_data"], 0.7, imgToFeatures)
 
+train_images, train_labels = p4X.reshape(p4X.shape[0], 28, 28), p4Y.astype('int')
+test_images, test_labels = p4Xt.reshape(p4Xt.shape[0], 28, 28), p4Yt.astype('int')
+
+p4X.shape, p4Y.shape, p4Xt.shape, p4Yt.shape, train_images.shape, test_images.shape
+
+
+# ## Architecture 1
+
+# In[512]:
+
+
+conv = Conv3x3(8)
+pool = MaxPool2()
+softmax = Softmax(13 * 13 * 8 , 10)
+
+def forward(image, label):
+  out = conv.forward(image - 0.5)
+  out = pool.forward(out)
+  out = softmax.forward(out)
+  loss = -np.log(out[label])
+  acc = 1 if np.argmax(out) == label else 0
+
+  return out, loss, acc
+
+def train(im, label, lr=.005):
+  out, loss, acc = forward(im, label)
+  gradient = np.zeros(10)
+  gradient[label] = -1 / out[label]
+  gradient = softmax.backprop(gradient, lr)
+  gradient = pool.backprop(gradient)
+  gradient = conv.backprop(gradient, lr)
+
+  return loss, acc
+
+print('Training the CNN Architecture 1 !\n')
+for epoch in range(1):
+  print('--- Epoch %d ---' % (epoch + 1))
+  permutation = np.random.permutation(train_images.shape[0])
+  train_images = train_images[permutation]
+  train_labels = train_labels[permutation]
+  loss = 0
+  num_correct = 0
+  for i, (im, label) in enumerate(zip(train_images, train_labels)):
+    if i % 5000 == 4999 :
+      print(
+        '[Step %d] Past 5000 steps: Average Loss %.3f | Accuracy: %d%%' %
+        (i + 1, loss / 5000, num_correct / 50)
+      )
+      loss = 0
+      num_correct = 0
+
+    l , acc = train(im, label)
+
+    loss += l
+    num_correct += acc
+
+print('\nTesting the CNN Architecture 1 !')
+loss = 0
+num_correct = 0
+for im, label in zip(test_images, test_labels):
+  _, l, acc = forward(im, label)
+  loss += l
+  num_correct += acc
+
+num_tests = len(test_images)
+print('Test Loss for Architecture 1 :', loss / num_tests)
+print('Test Accuracy for Architecture 1 : ' + str((num_correct / num_tests) * 100) +"%")
+
+
+# ## Architecture 2
+
+# In[513]:
+
+
+conv = Conv3x3(8)
+relu = layer_activation("relu")
+pool = MaxPool2()
+sigmoid = layer_activation("sigmoid")
+softmax = Softmax(13 * 13 * 8 , 10)
+
+def forward(image, label):
+  out = conv.forward(image - 0.5)
+  out = relu.forward_pass(out)
+  out = sigmoid.forward_pass(out)
+  out = pool.forward(out)
+  out = softmax.forward(out)
+  loss = -np.log(out[label])
+  acc = 1 if np.argmax(out) == label else 0
+
+  return out, loss, acc
+
+def train(im, label, lr=.005):
+  out, loss, acc = forward(im, label)
+  gradient = np.zeros(10)
+  gradient[label] = -1 / out[label]
+  gradient = softmax.backprop(gradient, lr)
+  gradient = pool.backprop(gradient)
+  gradient = sigmoid.backward_pass(gradient)
+  gradient = relu.backward_pass(gradient)
+  gradient = conv.backprop(gradient, lr)
+
+  return loss, acc
+
+for epoch in range(1):
+  print('--- Epoch %d ---' % (epoch + 1))
+  permutation = np.random.permutation(train_images.shape[0])
+  train_images = train_images[permutation]
+  train_labels = train_labels[permutation]
+  loss = 0
+  num_correct = 0
+  for i, (im, label) in enumerate(zip(train_images, train_labels)):
+    if i % 5000 == 4999 :
+      print(
+        '[Step %d] Past 5000 steps: Average Loss %.3f | Accuracy: %d%%' %
+        (i + 1, loss / 5000, num_correct / 50)
+      )
+      loss = 0
+      num_correct = 0
+
+    l , acc = train(im, label)
+
+    loss += l
+    num_correct += acc
+
+print('\nTesting the CNN Architecture 2 !')
+loss = 0
+num_correct = 0
+for im, label in zip(test_images, test_labels):
+  _, l, acc = forward(im, label)
+  loss += l
+  num_correct += acc
+
+num_tests = len(test_images)
+print('Test Loss for Architecture 2 :', loss / num_tests)
+print('Test Accuracy for Architecture 2 : ' + str((num_correct / num_tests) * 100) + "%")
+
+
+# ## Architecture 3
+
+# In[514]:
+
+
+conv = Conv3x3(8)
+relu = layer_activation("relu")
+pool = AvgPool2()
+softmax = Softmax(13 * 13 * 8, 10)
+
+def forward(image, label):
+  out = conv.forward(image - 0.5)
+  out = relu.forward_pass(out)
+  out = pool.forward(out)
+  out = softmax.forward(out)
+  loss = -np.log(out[label])
+  acc = 1 if np.argmax(out) == label else 0
+
+  return out, loss, acc
+
+def train(im, label, lr=.005):
+  out, loss, acc = forward(im, label)
+  gradient = np.zeros(10)
+  gradient[label] = -1 / out[label]
+  gradient = softmax.backprop(gradient, lr)
+  gradient = pool.backprop(gradient)
+  gradient = relu.backward_pass(gradient)
+  gradient = conv.backprop(gradient, lr)
+
+  return loss, acc
+
+for epoch in range(1):
+  print('--- Epoch %d ---' % (epoch + 1))
+  permutation = np.random.permutation(train_images.shape[0])
+  train_images = train_images[permutation]
+  train_labels = train_labels[permutation]
+  loss = 0
+  num_correct = 0
+  for i, (im, label) in enumerate(zip(train_images, train_labels)):
+    if i % 5000 == 4999 :
+      print(
+        '[Step %d] Past 5000 steps: Average Loss %.3f | Accuracy: %d%%' %
+        (i + 1, loss / 5000, num_correct / 50)
+      )
+      loss = 0
+      num_correct = 0
+    l , acc = train(im, label)
+    loss += l
+    num_correct += acc
+
+print('\nTesting the CNN Architecture 3 !')
+loss = 0
+num_correct = 0
+for im, label in zip(test_images, test_labels):
+  _, l, acc = forward(im, label)
+  loss += l
+  num_correct += acc
+
+num_tests = len(test_images)
+print('Test Loss for Architecture 3 :', loss / num_tests)
+print('Test Accuracy for Architecture 3 : ' + str((num_correct / num_tests) * 100) + "%")
 
 
 # # P6 (Neural Networks, CNN)
@@ -799,6 +1225,1475 @@ for i in range(4):
 # - Perturb each of the input images with additive Gaussian noise and report its regularization impact.
 # 
 # **DATA:** `images.zip (p4[data])`
+
+# ## Data Handling
+
+# In[523]:
+
+
+p4["full_data"] = genFromImage(imageDir, (28, 28))
+p4X, p4Y, p4Xt, p4Yt, _ = trainTestSplit(p4["full_data"], 0.8, imgToFeatures)
+
+p4X, p4Y = p4X.reshape(p4X.shape[0], 28, 28, 1), p4Y.astype('int').reshape(p4Y.shape[0], 1)
+testX, testy = p4Xt.reshape(p4Xt.shape[0], 28, 28, 1), p4Yt.astype('int').reshape(p4Yt.shape[0], 1)
+
+indices = np.arange(p4X.shape[0])
+np.random.shuffle(indices)
+
+s = int(0.9 * p4X.shape[0])
+trainX, valx = p4X[indices[:s]], p4X[indices[s:]]
+trainy, valy = p4Y[indices[:s]], p4Y[indices[s:]]
+
+trainX.shape, trainy.shape, valx.shape, valy.shape, testX.shape, testy.shape
+
+
+# ## Overfit
+
+# In[7]:
+
+
+# Make convolution class and forward, and backward propagation of it 
+class image_convolution:    
+    def __init__(self, total_filter):
+        self.num_filters = total_filter
+        # Initialize the weight matrix
+        self.weight_matrix = np.random.randn(total_filter, 3, 3)
+    # For convolution we need to split into weight matrix size patches
+    def patch_maker(self, image): 
+        height, width = image.shape
+        # Itrate all regions and split into 3x3   
+        for i in range(height-2):
+            for j in range(width-2):
+                img_patch = image[i:(i+3), j:(j+3)]
+                yield img_patch, i, j
+    # Now feed forward propagation        
+    def forward_prop(self, input):
+        self.last_input = input    
+        height, width = input.shape
+        # Make a dummy matrix to store the output    
+        dummy_out = np.zeros((height-2, width-2, self.num_filters))
+        # Now find patches using patch maker    
+        for img_patch, i, j in self.patch_maker(input):
+            dummy_out[i, j] = np.sum(img_patch * self.weight_matrix, axis=(1,2))
+        return dummy_out
+    # Simultaneously define backpropapgation for convolution
+    def backprop_conv(self, loss_grad_out, learning_rate):
+        # Initalize a matrix to store gradient loss of weights
+        weight_grad_loss = np.zeros(self.weight_matrix.shape)
+        for img_patch, i, j in self.patch_maker(self.last_input):
+            for f in range(self.num_filters):
+                weight_grad_loss[f] += loss_grad_out[i,j,f] * img_patch
+        # use gradient descent to update weights
+        self.weight_matrix -= learning_rate * weight_grad_loss
+        return None
+
+
+# In[8]:
+
+
+# Now make a class for maxpooling
+class MaxPooling:
+    def img_pooler(self, image):
+        height, width, _ = image.shape
+        # Since we need to have (2, 2) pooling    
+        new_h = height // 2
+        new_w = width // 2
+        # Now divide it on 2x2 patches
+        for i in range(new_h):
+            for j in range(new_w):
+                img_patch = image[(i*2):(i*2+2), (j*2):(j*2+2)]
+                yield img_patch, i, j
+    # Again for maxpooling make a feed_forward function            
+    def forward_max(self, input):
+        self.final_input = input
+        # Find dimesnsion of input    
+        height, width, matrix_count = input.shape
+        output = np.zeros((height//2, width//2, matrix_count))
+        # For each pooled patch find output
+        for img_patch, i, j in self.img_pooler(input):
+            output[i,j] = np.amax(img_patch,axis=(0,1))    
+        return output
+     # Same way define the backpropagation for MaxPooling
+    def backprop_max(self, loss_grad_out):
+        loss_grad_input = np.zeros(self.final_input.shape)
+        # Now from enter into each img_patch
+        for img_patch, i, j in self.img_pooler(self.final_input):
+            height, width, weight_matrix = img_patch.shape
+            patch_maxima = np.amax(img_patch, axis=(0,1))
+            # Now iterate in all weight matrix all elements
+            for row in range(height):
+                for col in range(width):
+                    for channel in range(weight_matrix):
+                        #if the pixel was the max value, copy the gradient to it
+                        if(img_patch[row,col,channel] == patch_maxima[channel]):
+                            loss_grad_input[i*2+row, j*2+col ,channel] = loss_grad_out[i, j, channel]
+                            break
+        return loss_grad_input
+
+
+# In[9]:
+
+
+
+ # Define the last class for classification network
+class Fully_Connected_Net:
+    def __init__(self, in_length, neuron):
+        self.weights = np.random.randn(in_length, neuron)
+        self.biases = np.zeros(neuron)
+    
+    # Since formula for FC backpropagation is different hence define once again for FC
+    def forward_fc(self, input_data):    
+        self.last_input_shape = input_data.shape
+        # Flatten the data to feed forward
+        input_data = input_data.flatten()
+        self.last_input = input_data
+        # First activation 
+        active = np.dot(input_data, self.weights) + self.biases
+        self.last_layer_out = active
+        # Take softmax and return
+        exp = np.exp(active)
+        return(exp/np.sum(exp, axis=0)) 
+    
+    # Backpropagation for FC Net
+    def backprop_FC(self, loss_grad, learn_rate):       
+        # Check whether the gradient is zero
+        for i, gradient in enumerate(loss_grad):
+            if(gradient == 0):
+                continue
+            last_exp = np.exp(self.last_layer_out)
+            Sum_last = np.sum(np.exp(self.last_layer_out))
+            # Now find the derivative
+            d_out = -last_exp[i] * last_exp/ (Sum_last**2)
+            d_out[i] = last_exp[i] * (Sum_last-last_exp[i]) /(Sum_last**2)
+            
+            # Gradients weights/biases
+            dw1 = self.last_input
+            db1 = 1
+            dinput = self.weights
+            # Gradients of loss with respect to output
+            df1 = gradient * d_out   
+            # Gradients of loss of next
+            dw2 = dw1[np.newaxis].T @ df1[np.newaxis]
+            db2 = df1 * db1  
+            d_inp = dinput @ df1           
+            # Now use gradient descent to update the weights
+            self.weights -= learn_rate * dw2
+            self.biases -= learn_rate * db2
+            return d_inp.reshape(self.last_input_shape)
+
+
+# In[14]:
+
+
+# Make an instance for all these classes
+convolution_layer = image_convolution(20)
+pooling_layer = MaxPooling()
+classification = Fully_Connected_Net(13 * 13 * 20, 10)
+
+# Now make a forward function which combine all forward models
+def feed_forward(input_image, input_label):
+    # First pass to convolution layer
+    convolved = convolution_layer.forward_prop((input_image/255))
+    # Then paa through pooling layer
+    pooled = pooling_layer.forward_max(convolved)
+    # Now classification layer
+    classi = classification.forward_fc(pooled)   
+    # Find accuracy metric
+    loss = -np.log(classi[input_label])
+    if(np.argmax(classi) == input_label):
+        accuracy =1 
+    else: 
+        accuracy= 0
+    return classi, loss, accuracy
+
+# Make a function which train it
+def train(trainX, trainy, learning_rate=0.005):
+    # Feed to forward model
+    prediction, loss, acc = feed_forward(trainX, trainy)
+    # Initialialize gradient
+    gradient = np.zeros(10)
+    gradient[trainy] = -1/prediction[trainy]
+    # Update weights by Backpropagation
+    gradient = classification.backprop_FC(gradient, learning_rate)
+    pool = pooling_layer.backprop_max(gradient)
+    gradient = convolution_layer.backprop_conv(pool, learning_rate)   
+    return loss, acc
+  
+# Now simply make data ready and call the training function
+epochs = 10
+m = trainX.shape[0]
+n = valx.shape[0]
+train_loss = []
+valid_loss = []
+for epoch in range(epochs):
+    print('---Training epoch %d ---'%(epoch+1))
+    epoch_loss = 0
+    epoch_accu = 0
+    for t, (image_batch, label_batch) in enumerate(zip(trainX, trainy)):
+        img_loss, img_accu = train(image_batch, label_batch)
+        epoch_loss += img_loss
+        epoch_accu += img_accu
+    train_loss.append(epoch_loss/m)
+    validation_loss = 0
+    validation_accuracy = 0
+    for k, (val_img, val_lab) in enumerate(zip(valx, valy)):
+      classi, val_loss, val_acc = feed_forward(val_img, val_lab)
+      validation_loss += val_loss
+      validation_accuracy += val_acc
+    valid_loss.append(validation_loss/n)
+    print(f"Epoch {epoch+1} training loss {epoch_loss/m:.4f} train_accuracy {(epoch_accu/m)*100:.4f}, val_loss {validation_loss/n:.4f} val_accuracy {(validation_accuracy/n)*100:.4f}")
+
+
+# In[29]:
+
+
+# Now plot the curve
+import matplotlib.pyplot as plt
+plt.plot(train_loss)
+plt.plot(valid_loss)
+plt.legend(['Training loss', 'Validation loss'])
+plt.xlabel('number of epochs')
+plt.ylabel('Risk')
+plt.title('Bias-variance curve')
+
+
+# ## Regularize with L2 and early stopping
+
+# In[52]:
+
+
+class Fully_Connected_Net:
+    def __init__(self, in_length, neuron, l2_reg):
+        self.weights = np.random.randn(in_length, neuron)
+        self.biases = np.zeros(neuron)
+        self.l2_reg = l2_reg
+    
+    # Since formula for FC backpropagation is different hence define once again for FC
+    def forward_fc(self, input_data):    
+        self.last_input_shape = input_data.shape
+        # Flatten the data to feed forward
+        input_data = input_data.flatten()
+        self.last_input = input_data
+        # First activation 
+        active = np.dot(input_data, self.weights) + self.biases
+        self.last_layer_out = active
+        # Take softmax and return
+        exp = np.exp(active)
+        Weight = self.weights
+        Bias = self.biases
+        return (exp/np.sum(exp, axis=0)), Weight, Bias
+    
+    # Backpropagation for FC Net
+    def backprop_FC(self, loss_grad, learn_rate, l2_reg):       
+        # Check whether the gradient is zero
+        for i, gradient in enumerate(loss_grad):
+            if(gradient == 0):
+                continue
+            last_exp = np.exp(self.last_layer_out)
+            Sum_last = np.sum(np.exp(self.last_layer_out))
+            # Now find the derivative
+            d_out = -last_exp[i] * last_exp/ (Sum_last**2)
+            d_out[i] = last_exp[i] * (Sum_last-last_exp[i]) /(Sum_last**2)
+            
+            # Gradients weights/biases
+            dw1 = self.last_input
+            db1 = 1
+            dinput = self.weights
+            # Gradients of loss with respect to output
+            df1 = gradient * d_out   
+            # Gradients of loss of next
+            dw2 = dw1[np.newaxis].T @ df1[np.newaxis]
+            db2 = df1 * db1  
+            d_inp = dinput @ df1           
+            
+            # L2 regularization update
+            dw2 += self.l2_reg * self.weights
+            db2 += self.l2_reg * self.biases
+            
+            # Now use gradient descent to update the weights
+            self.weights -= learn_rate * dw2
+            self.biases -= learn_rate * db2
+        
+        return d_inp.reshape(self.last_input_shape)
+
+
+# In[53]:
+
+
+# Make an instance for all these classes
+convolution_layer = image_convolution(20)
+pooling_layer = MaxPooling()
+classification = Fully_Connected_Net(13 * 13 * 20, 10, 0.1)
+
+# Now make a forward function which combine all forward models
+def feed_forward(input_image, input_label):
+    # First pass to convolution layer
+    convolved = convolution_layer.forward_prop((input_image/255))
+    # Then paa through pooling layer
+    pooled = pooling_layer.forward_max(convolved)
+    # Now classification layer
+    classi, Weight, Bias = classification.forward_fc(pooled)   
+    # Find loss with L2 regularization
+    loss = -np.log(classi[input_label])
+    # Apply regularization
+    l2_reg = 0.5*(np.sum(Weight ** 2))
+    if(np.argmax(classi) == input_label):
+        accuracy =1 
+    else: 
+        accuracy= 0
+    return classi, loss, accuracy, Weight, Bias, l2_reg
+
+# Make a function which train it
+def train(trainX, trainy, learning_rate=0.005):
+    # Feed to forward model
+    prediction, loss, acc,_,_, l2_reg = feed_forward(trainX, trainy)
+    # Initialialize gradient
+    gradient = np.zeros(10)
+    gradient[trainy] = -1/prediction[trainy]
+    # Update weights by Backpropagation
+    gradient = classification.backprop_FC(gradient, learning_rate, l2_reg)
+    pool = pooling_layer.backprop_max(gradient)
+    gradient = convolution_layer.backprop_conv(pool, learning_rate)   
+    return loss, acc
+  
+# Now simply make data ready and call the training function
+epochs = 10
+m = trainX.shape[0]
+n = valx.shape[0]
+train_loss = []
+valid_loss = []
+max_loss = 1000
+for epoch in range(epochs):
+    print('---Training epoch %d ---'%(epoch+1))
+    epoch_loss = 0
+    epoch_accu = 0
+    for t, (image_batch, label_batch) in enumerate(zip(trainX, trainy)):
+        img_loss, img_accu = train(image_batch, label_batch)
+        epoch_loss += img_loss
+        epoch_accu += img_accu
+    train_loss.append(epoch_loss/m)
+    validation_loss = 0
+    validation_accuracy = 0
+    for k, (val_img, val_lab) in enumerate(zip(valx, valy)):
+      classi, val_loss, val_acc, Weight, Bias, _ = feed_forward(val_img, val_lab)
+      validation_loss += val_loss
+      validation_accuracy += val_acc
+
+    # Early stopping 
+    t = validation_loss/n
+    valid_loss.append(t)
+    # Copy the weights
+    if max_loss >= t:
+      Bias = Bias
+      Weight = Weight
+      print(f"Epoch {epoch+1} training loss {epoch_loss/m:.4f} train_accuracy {(epoch_accu/m)*100:.4f}, val_loss {t:.4f} val_accuracy {(validation_accuracy/n)*100:.4f} And val-loss deacreasing")
+      max_loss = t
+    else:
+      print('Validation accuracy is not increasing. Stopping in 2 observations')
+
+
+# In[54]:
+
+
+plt.plot(train_loss)
+plt.plot(valid_loss)
+plt.legend(['Training loss', 'Validation loss'])
+plt.xlabel('number of epochs')
+plt.ylabel('Risk')
+plt.title('Bias-variance curve')
+
+
+# ## Regularize by input perturbation with additive Gaussian noise
+
+# In[1]:
+
+
+# Make convolution class and forward, and backward propagation of it 
+class image_convolution:    
+    def __init__(self, total_filter):
+        self.num_filters = total_filter
+        # Initialize the weight matrix
+        self.weight_matrix = np.random.randn(total_filter, 3, 3)
+    # For convolution we need to split into weight matrix size patches
+    def patch_maker(self, image): 
+        height, width = image.shape
+        # Itrate all regions and split into 3x3   
+        for i in range(height-2):
+            for j in range(width-2):
+                img_patch = image[i:(i+3), j:(j+3)]
+                yield img_patch, i, j
+    # Now feed forward propagation        
+    def forward_prop(self, input):
+        self.last_input = input    
+        height, width = input.shape
+        # Make a dummy matrix to store the output    
+        dummy_out = np.zeros((height-2, width-2, self.num_filters))
+        # Now find patches using patch maker    
+        for img_patch, i, j in self.patch_maker(input):
+            dummy_out[i, j] = np.sum(img_patch * self.weight_matrix, axis=(1,2))
+        return dummy_out
+    # Simultaneously define backpropapgation for convolution
+    def backprop_conv(self, loss_grad_out, learning_rate):
+        # Initalize a matrix to store gradient loss of weights
+        weight_grad_loss = np.zeros(self.weight_matrix.shape)
+        for img_patch, i, j in self.patch_maker(self.last_input):
+            for f in range(self.num_filters):
+                weight_grad_loss[f] += loss_grad_out[i,j,f] * img_patch
+        # use gradient descent to update weights
+        self.weight_matrix -= learning_rate * weight_grad_loss
+        return None
+
+
+# In[2]:
+
+
+# Now make a class for maxpooling
+class MaxPooling:
+    def img_pooler(self, image):
+        height, width, _ = image.shape
+        # Since we need to have (2, 2) pooling    
+        new_h = height // 2
+        new_w = width // 2
+        # Now divide it on 2x2 patches
+        for i in range(new_h):
+            for j in range(new_w):
+                img_patch = image[(i*2):(i*2+2), (j*2):(j*2+2)]
+                yield img_patch, i, j
+    # Again for maxpooling make a feed_forward function            
+    def forward_max(self, input):
+        self.final_input = input
+        # Find dimesnsion of input    
+        height, width, matrix_count = input.shape
+        output = np.zeros((height//2, width//2, matrix_count))
+        # For each pooled patch find output
+        for img_patch, i, j in self.img_pooler(input):
+            output[i,j] = np.amax(img_patch,axis=(0,1))    
+        return output
+     # Same way define the backpropagation for MaxPooling
+    def backprop_max(self, loss_grad_out):
+        loss_grad_input = np.zeros(self.final_input.shape)
+        # Now from enter into each img_patch
+        for img_patch, i, j in self.img_pooler(self.final_input):
+            height, width, weight_matrix = img_patch.shape
+            patch_maxima = np.amax(img_patch, axis=(0,1))
+            # Now iterate in all weight matrix all elements
+            for row in range(height):
+                for col in range(width):
+                    for channel in range(weight_matrix):
+                        #if the pixel was the max value, copy the gradient to it
+                        if(img_patch[row,col,channel] == patch_maxima[channel]):
+                            loss_grad_input[i*2+row, j*2+col ,channel] = loss_grad_out[i, j, channel]
+                            break
+        return loss_grad_input
+
+
+# In[3]:
+
+
+
+ # Define the last class for classification network
+class Fully_Connected_Net:
+    def __init__(self, in_length, neuron):
+        self.weights = np.random.randn(in_length, neuron)
+        self.biases = np.zeros(neuron)
+    
+    # Since formula for FC backpropagation is different hence define once again for FC
+    def forward_fc(self, input_data):    
+        self.last_input_shape = input_data.shape
+        # Flatten the data to feed forward
+        input_data = input_data.flatten()
+        self.last_input = input_data
+        # First activation 
+        active = np.dot(input_data, self.weights) + self.biases
+        self.last_layer_out = active
+        # Take softmax and return
+        exp = np.exp(active)
+        return(exp/np.sum(exp, axis=0)) 
+    
+    # Backpropagation for FC Net
+    def backprop_FC(self, loss_grad, learn_rate):       
+        # Check whether the gradient is zero
+        for i, gradient in enumerate(loss_grad):
+            if(gradient == 0):
+                continue
+            last_exp = np.exp(self.last_layer_out)
+            Sum_last = np.sum(np.exp(self.last_layer_out))
+            # Now find the derivative
+            d_out = -last_exp[i] * last_exp/ (Sum_last**2)
+            d_out[i] = last_exp[i] * (Sum_last-last_exp[i]) /(Sum_last**2)
+            
+            # Gradients weights/biases
+            dw1 = self.last_input
+            db1 = 1
+            dinput = self.weights
+            # Gradients of loss with respect to output
+            df1 = gradient * d_out   
+            # Gradients of loss of next
+            dw2 = dw1[np.newaxis].T @ df1[np.newaxis]
+            db2 = df1 * db1  
+            d_inp = dinput @ df1           
+            # Now use gradient descent to update the weights
+            self.weights -= learn_rate * dw2
+            self.biases -= learn_rate * db2
+            return d_inp.reshape(self.last_input_shape)
+
+
+# In[21]:
+
+
+# Add gaussian noise
+p, q, r = trainX.shape
+noise1 = np.random.randn(p, q, r)
+trainX = trainX + noise1
+p1,q1,r1 = valx.shape
+noise2 = np.random.randn(p1, q1, r1)
+valx = valx + noise2
+
+
+# In[23]:
+
+
+# Make an instance for all these classes
+convolution_layer = image_convolution(20)
+pooling_layer = MaxPooling()
+classification = Fully_Connected_Net(13 * 13 * 20, 10)
+
+# Now make a forward function which combine all forward models
+def feed_forward(input_image, input_label):
+    # First pass to convolution layer
+    convolved = convolution_layer.forward_prop((input_image/255))
+    # Then paa through pooling layer
+    pooled = pooling_layer.forward_max(convolved)
+    # Now classification layer
+    classi = classification.forward_fc(pooled)   
+    # Find accuracy metric
+    loss = -np.log(classi[input_label])
+    if(np.argmax(classi) == input_label):
+        accuracy =1 
+    else: 
+        accuracy= 0
+    return classi, loss, accuracy
+
+# Make a function which train it
+def train(trainX, trainy, learning_rate=0.005):
+    # Feed to forward model
+    prediction, loss, acc = feed_forward(trainX, trainy)
+    # Initialialize gradient
+    gradient = np.zeros(10)
+    gradient[trainy] = -1/prediction[trainy]
+    # Update weights by Backpropagation
+    gradient = classification.backprop_FC(gradient, learning_rate)
+    pool = pooling_layer.backprop_max(gradient)
+    gradient = convolution_layer.backprop_conv(pool, learning_rate)   
+    return loss, acc
+  
+# Now simply make data ready and call the training function
+epochs = 10
+m = trainX.shape[0]
+n = valx.shape[0]
+train_loss = []
+valid_loss = []
+for epoch in range(epochs):
+    print('---Training epoch %d ---'%(epoch+1))
+    epoch_loss = 0
+    epoch_accu = 0
+    for t, (image_batch, label_batch) in enumerate(zip(trainX, trainy)):
+        img_loss, img_accu = train(image_batch, label_batch)
+        epoch_loss += img_loss
+        epoch_accu += img_accu
+    train_loss.append(epoch_loss/m)
+    validation_loss = 0
+    validation_accuracy = 0
+    for k, (val_img, val_lab) in enumerate(zip(valx, valy)):
+      classi, val_loss, val_acc = feed_forward(val_img, val_lab)
+      validation_loss += val_loss
+      validation_accuracy += val_acc
+    valid_loss.append(validation_loss/n)
+    print(f"Epoch {epoch+1} training loss {epoch_loss/m:.4f} train_accuracy {(epoch_accu/m)*100:.4f}, val_loss {validation_loss/n:.4f} val_accuracy {(validation_accuracy/n)*100:.4f}")
+
+
+# In[24]:
+
+
+# Plot the bias varaince curve
+plt.plot(train_loss)
+plt.plot(valid_loss)
+plt.legend(['Training loss', 'Validation loss'])
+plt.xlabel('number of epochs')
+plt.ylabel('Risk')
+plt.title('Bias-variance curve')
+
+
+# In[ ]:
+
+
+def preprocess_data(x, y, limit):
+    zero_index = np.where(y == 0)[0][:limit]
+    one_index = np.where(y == 1)[0][:limit]
+    two_index = np.where(y == 2)[0][:limit]
+    three_index = np.where(y == 3)[0][:limit]
+    four_index = np.where(y == 4)[0][:limit]
+    five_index = np.where(y == 5)[0][:limit]
+    six_index = np.where(y == 6)[0][:limit]
+    seven_index = np.where(y == 7)[0][:limit]
+    eight_index = np.where(y == 8)[0][:limit]
+    nine_index = np.where(y == 9)[0][:limit]
+
+    # Concatenate the indices and shuffle.
+    all_indices = np.hstack((zero_index, one_index, two_index, three_index, four_index, five_index, six_index, seven_index, eight_index, nine_index))
+    all_indices = np.random.permutation(all_indices)
+
+    # Subset the data and reshape.
+    x, y = x[all_indices], y[all_indices]
+    x = x.reshape(len(x), 1, 28, 28)
+    x = x.astype("float32") / 255
+
+    # One-hot encode the labels
+    n_classes = 10
+    y_one_hot = np.zeros((y.shape[0], n_classes))
+    for i in range(y.shape[0]):
+        y_one_hot[i, y[i]] = 1
+
+    y_one_hot = y_one_hot.reshape(len(y_one_hot), 10, 1)
+    return x, y_one_hot
+
+
+# In[ ]:
+
+
+# load MNIST from server, limit to 100 images per class since we're not training on GPU
+x_train, y_train = preprocess_data(x_train, y_train, 6000)
+x_test, y_test = preprocess_data(x_test, y_test, 1000)
+
+
+# In[ ]:
+
+
+# Shuffle the training data randomly
+indices = np.arange(x_train.shape[0])
+np.random.shuffle(indices)
+
+# Split the training data into 70% for training and 30% for validation
+split_idx = int(0.001 * x_train.shape[0])
+train_indices, val_indices = indices[:split_idx], indices[split_idx:]
+
+# Split the training data into training and validation sets
+xtrain, xval = x_train[train_indices], x_train[val_indices]
+ytrain, yval = y_train[train_indices], y_train[val_indices]
+
+
+# In[ ]:
+
+
+def predict(network, input):
+    output = input
+    for layer in network:
+        output = layer.forward(output)
+    return output
+
+
+# In[ ]:
+
+
+def train(network, loss, loss_prime, x_train, y_train, x_val , y_val , epochs = 1000, learning_rate = 0.01, early_stopping = False , patience = 5 ,  verbose = True):
+    cost_train = []
+    cost_val = []
+    train_acc = []
+    val_acc = []
+    patience = 0
+    early_stopping = False
+    patience_counter = 0
+    best_val_loss = np.inf
+    epoch_counter = 0
+    best_epoch = 0
+    continue_training = True
+    for e in range(epochs):
+        error_train = 0
+        error_val = 0
+        pred_train = []
+        pred_val = []
+        
+        if(continue_training == False):
+                print("Stopped Training due to Early Stoping after {} epochs".format(epoch_counter))
+                break
+
+        for x, y in zip(x_train, y_train):
+            output_t = predict(network, x)
+            pred_train.append(output_t)
+
+            error_train += loss(y , output_t)
+
+            grad = loss_prime(y, output_t)
+            for layer in reversed(network):
+                grad = layer.backward(grad, learning_rate)
+
+        for x_v , y_v in zip(x_val, y_val):
+            output_v = predict(network , x_v)
+            pred_val.append(output_v)
+            error_val += loss(y_v , output_v)
+
+        error_train /= len(x_train)
+        error_val /= len(x_val)
+        cost_train.append(error_train)
+        cost_val.append(error_val)
+        acc_train = accuracy_score(y_train ,np.array(pred_train))
+        acc_val = accuracy_score(y_val ,np.array(pred_val))
+        train_acc.append(acc_train)
+        val_acc.append(acc_val)
+
+        if(epoch_counter > 5):
+            if(early_stopping == True):
+                if(patience_counter <= patience):
+                    if (best_val_loss > cost_val):
+                      patience_counter = 0
+                      best_epoch = epoch_counter + 1
+                      .best_val_loss = cost_val
+                      for layer in layers:
+                          if hasattr(layer, 'weights'):
+                              if not hasattr(layer, 'best_weights'):
+                                  layer.best_weights = np.zeros_like(layer.weights)
+                                  layer.best_biases = np.zeros_like(layer.biases)
+                              
+                              layer.best_weights = layer.weights
+                              layer.best_biases = layer.biases              
+                    else:
+                        patience_counter += 1            
+                else:
+                    continue_training = False
+                    for layer in layers:
+                        if hasattr(layer, 'weights'):
+                            layer.weights = layer.best_weights
+                            layer.biases = layer.best_biases
+
+        if verbose:
+            print(f"{e + 1}/{epochs}, error_train = {error_train} , train_accuracy = {acc_train}, error_val = {error_val} , val_accuracy = {acc_val} ")
+    return cost_train , cost_val , train_acc , val_acc
+
+
+# **Building a big-enough CNN architecture that would overfit the K-MNIST data. To ensure overfitting , we are considering only small subset of training dataset and training the model for more number of epochs.**
+
+# In[ ]:
+
+
+# Define the neural network architecture as a list of layers
+network = [
+    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
+    Sigmoid(),
+    Convolutional((5, 22, 22), 3, 5),
+    Sigmoid(),
+    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
+    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(100, 10),  # Fully connected layer with 10 output units
+    Softmax()   # Softmax activation function
+]
+
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train_unreg , cost_val_unreg , train_acc_unreg , val_acc_unreg = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain,  # Training input data
+    ytrain,  # Training target data
+    xval[:1000],  # Validation input data
+    yval[:1000],  # Validation target data
+    epochs= 50 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# **Imposing L2 regularizer and plotting the bias-variance curves.**
+
+# In[ ]:
+
+
+# Define the neural network architecture as a list of layers
+network = [
+    Convolutional((1, 28, 28), 3, 8 , 0.0005),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((8, 26, 26), 3, 5 , 0.0005),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((5, 24, 24), 3, 5 , 0.0005),  # Optional additional convolutional layer
+    Sigmoid(),
+    Convolutional((5, 22, 22), 3, 5 , 0.0005),
+    Sigmoid(),
+    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
+    Dense(5 * 20 * 20, 1000 , 0.0005),  # Fully connected layer with 100 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(1000 , 100 , 0.0005),  # Fully connected layer with 1000 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(100, 10 , 0.0005),  # Fully connected layer with 10 output units
+    Softmax()   # Softmax activation function
+]
+
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train_reg , cost_val_reg , train_acc_reg , val_acc_reg = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain,  # Training input data
+    ytrain,  # Training target data
+    xval[:2000],  # Validation input data
+    yval[:2000],  # Validation target data
+    epochs= 50 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# In[ ]:
+
+
+epochs = []
+for epoch in range(1 , 51):
+  epochs.append(epoch)
+
+
+costs_val_unreg = np.squeeze(cost_val_unreg)
+costs_train_unreg = np.squeeze(cost_train_unreg)
+
+costs_val_reg = np.squeeze(cost_val_reg)
+costs_train_reg = np.squeeze(cost_train_reg)
+
+
+# create a figure and axis
+fig, ax = plt.subplots()
+
+# plot err1 against x_list
+ax.plot(epochs ,  costs_train_unreg, label='Error during Training')
+
+# plot err2 against x_list
+ax.plot(epochs , costs_val_unreg , label = 'Error during Validation without Regularization')
+
+# plot errr against x_list
+ax.plot(epochs , costs_val_reg , label = 'Error during Validation with Regularization')
+
+# add labels and title
+ax.set_xlabel('Number of Epochs')
+ax.set_ylabel('Error')
+ax.set_title('Error  against Number of epochs')
+
+# add legend
+ax.legend()
+
+# show the plot
+plt.show()
+
+
+# **Perturbing each of the input images with additive Gaussian noise and reporting its regularization impact.**
+
+# In[ ]:
+
+
+xtrain_noise = xtrain + np.random.randn(*(xtrain.shape))
+
+
+# In[ ]:
+
+
+# Define the neural network architecture as a list of layers
+network = [
+    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
+    Sigmoid(),
+    Convolutional((5, 22, 22), 3, 5),
+    Sigmoid(),
+    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
+    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(100, 10),  # Fully connected layer with 10 output units
+    Softmax()   # Softmax activation function
+]
+
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train_reg_noise , cost_val_reg_noise , train_acc_reg_noise , val_acc_reg_noise = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain_noise,  # Training noisy input data
+    ytrain,  # Training target data
+    xval[:1000],  # Validation input data
+    yval[:1000],  # Validation target data
+    epochs= 25 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# In[ ]:
+
+
+epochs = []
+for epoch in range(1 , 26):
+  epochs.append(epoch)
+
+
+costs_val_reg_noise = np.squeeze(cost_val_reg_noise)
+costs_train_reg_noise = np.squeeze(cost_train_reg_noise)
+
+
+# create a figure and axis
+fig, ax = plt.subplots()
+
+# plot err1 against x_list
+ax.plot(epochs ,  costs_train_reg_noise, label='Error during Training')
+
+# plot err2 against x_list
+ax.plot(epochs , costs_val_reg_noise , label = 'Error during Validation with Noise')
+
+# add labels and title
+ax.set_xlabel('Number of Epochs')
+ax.set_ylabel('Error')
+ax.set_title('Error  against Number of epochs')
+
+# add legend
+ax.legend()
+
+# show the plot
+plt.show()
+
+
+# **Imposing early-stopping as regularizers and plotting the bias-variance curves**
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train , cost_val , train_acc , val_acc = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain,  # Training noisy input data
+    ytrain,  # Training target data
+    xval[:1000],  # Validation input data
+    yval[:1000],  # Validation target data
+    epochs= 18 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# In[ ]:
+
+
+epochs = []
+for epoch in range(1 , 51):
+  epochs.append(epoch)
+
+
+# create a figure and axis
+fig, ax = plt.subplots()
+
+# plot err1 against x_list
+ax.plot(epochs ,  costs_train_unreg, label='Train loss without Regularization')
+
+# plot err2 against x_list
+ax.plot(epochs , costs_val_unreg_ , label = 'Validation loss without Regularization')
+
+ax.plot(epochs , costs_val_reg_noise , label = 'Input Data Pertubed with Noise')
+
+ax.plot(epochs , costs_val , label = 'With Early Stopping')
+
+# add labels and title
+ax.set_xlabel('No of epochs'')
+ax.set_ylabel('Cross Entropy Error')
+
+# add legend
+ax.legend()
+
+# show the plot
+plt.show()
+
+
+# In[84]:
+
+
+# Load train and test data
+train_data = np.genfromtxt('../data/p4_mnist_train.csv', delimiter=',')
+test_data = np.genfromtxt('../data/p4_mnist_test.csv', delimiter=',')
+
+# Extract X and y data from train and test data
+x_train, y_train = get_X_y_data(train_data)
+x_test, y_test = get_X_y_data(test_data)
+
+# Reshape x_train and x_test data to include a third dimension, corresponding to the single color channel
+x_train = x_train.reshape((x_train.shape[0], x_train.shape[1], 1))
+x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
+
+
+# In[ ]:
+
+
+def preprocess_data(x, y, limit):
+    """
+    Preprocess input data and target labels.
+
+    Args:
+        x (numpy.ndarray): Input data.
+        y (numpy.ndarray): Target labels.
+        limit (int): Maximum number of samples per class.
+
+    Returns:
+        numpy.ndarray: Preprocessed input data.
+        numpy.ndarray: One-hot encoded target labels.
+
+    """
+    # Get indices of samples for each class and limit to `limit` samples per class.
+    zero_index = np.where(y == 0)[0][:limit]
+    one_index = np.where(y == 1)[0][:limit]
+    two_index = np.where(y == 2)[0][:limit]
+    three_index = np.where(y == 3)[0][:limit]
+    four_index = np.where(y == 4)[0][:limit]
+    five_index = np.where(y == 5)[0][:limit]
+    six_index = np.where(y == 6)[0][:limit]
+    seven_index = np.where(y == 7)[0][:limit]
+    eight_index = np.where(y == 8)[0][:limit]
+    nine_index = np.where(y == 9)[0][:limit]
+
+    # Concatenate the indices and shuffle.
+    all_indices = np.hstack((zero_index, one_index, two_index, three_index, four_index, five_index, six_index, seven_index, eight_index, nine_index))
+    all_indices = np.random.permutation(all_indices)
+
+    # Subset the data and reshape.
+    x, y = x[all_indices], y[all_indices]
+    x = x.reshape(len(x), 1, 28, 28)
+    x = x.astype("float32") / 255
+
+    # One-hot encode the labels
+    n_classes = 10
+    y_one_hot = np.zeros((y.shape[0], n_classes))
+    for i in range(y.shape[0]):
+        y_one_hot[i, y[i]] = 1
+
+    y_one_hot = y_one_hot.reshape(len(y_one_hot), 10, 1)
+    return x, y_one_hot
+
+
+# In[ ]:
+
+
+# load MNIST from server, limit to 100 images per class since we're not training on GPU
+x_train, y_train = preprocess_data(x_train, y_train, 6000)
+x_test, y_test = preprocess_data(x_test, y_test, 1000)
+
+
+# In[ ]:
+
+
+# Shuffle the training data randomly
+indices = np.arange(x_train.shape[0])
+np.random.shuffle(indices)
+
+# Split the training data into 70% for training and 30% for validation
+split_idx = int(0.001 * x_train.shape[0])
+train_indices, val_indices = indices[:split_idx], indices[split_idx:]
+
+# Split the training data into training and validation sets
+xtrain, xval = x_train[train_indices], x_train[val_indices]
+ytrain, yval = y_train[train_indices], y_train[val_indices]
+
+
+# In[ ]:
+
+
+def predict(network, input):
+    """
+    This function takes in a neural network and an input, applies the forward propagation to 
+    the input through the network, and returns the output.
+    
+    Args:
+    - network (list): a list of layers that make up the neural network.
+    - input (numpy.ndarray): the input data.
+    
+    Returns:
+    - output (numpy.ndarray): the output after forward propagation through the network.
+    """
+    output = input
+    for layer in network:
+        output = layer.forward(output)
+    return output
+
+
+# In[ ]:
+
+
+def train(network, loss, loss_prime, x_train, y_train, x_val , y_val , epochs = 1000, learning_rate = 0.01, early_stopping = False , patience = 5 ,  verbose = True):
+    """
+    This function trains a neural network using the specified loss function and its derivative, 
+    and prints out the training and validation errors as well as the training and validation accuracies 
+    at each epoch.
+    
+    Args:
+    - network (list): a list of layers that make up the neural network.
+    - loss (function): the loss function to be used for training the network.
+    - loss_prime (function): the derivative of the loss function to be used for training the network.
+    - x_train (numpy.ndarray): the input training data.
+    - y_train (numpy.ndarray): the target training data.
+    - x_val (numpy.ndarray): the input validation data.
+    - y_val (numpy.ndarray): the target validation data.
+    - epochs (int): the number of epochs to train the network.
+    - learning_rate (float): the learning rate used for training the network.
+    - verbose (bool): a flag that indicates whether to print out the training and validation errors 
+                      and accuracies at each epoch.
+                      
+    Returns:
+    - None
+    """
+    cost_train = []
+    cost_val = []
+    train_acc = []
+    val_acc = []
+    patience = 0
+    early_stopping = False
+    patience_counter = 0
+    best_val_loss = np.inf
+    epoch_counter = 0
+    best_epoch = 0
+    continue_training = True
+    for e in range(epochs):
+        error_train = 0
+        error_val = 0
+        pred_train = []
+        pred_val = []
+        
+        if(continue_training == False):
+                print("Stopped Training due to Early Stoping after {} epochs".format(epoch_counter))
+                # print("Optimal Validation Loss : {}".format(best_val_loss))
+                break
+
+        # Training loop
+        for x, y in zip(x_train, y_train):
+            # forward
+            output_t = predict(network, x)
+            pred_train.append(output_t)
+
+            # error
+            error_train += loss(y , output_t)
+
+            # backward
+            grad = loss_prime(y, output_t)
+            for layer in reversed(network):
+                grad = layer.backward(grad, learning_rate)
+
+        # Validation loop
+        for x_v , y_v in zip(x_val, y_val):
+            output_v = predict(network , x_v)
+            pred_val.append(output_v)
+            error_val += loss(y_v , output_v)
+
+        # Calculate and print out the training and validation errors and accuracies
+        error_train /= len(x_train)
+        error_val /= len(x_val)
+        cost_train.append(error_train)
+        cost_val.append(error_val)
+        acc_train = accuracy_score(y_train ,np.array(pred_train))
+        acc_val = accuracy_score(y_val ,np.array(pred_val))
+        train_acc.append(acc_train)
+        val_acc.append(acc_val)
+
+        if(epoch_counter > 5):
+            if(early_stopping == True):
+                if(patience_counter <= patience):
+                    if (best_val_loss > cost_val):
+                      patience_counter = 0
+                      best_epoch = epoch_counter + 1
+                      .best_val_loss = cost_val
+                      for layer in layers:
+                          if hasattr(layer, 'weights'):
+                              if not hasattr(layer, 'best_weights'):
+                                  layer.best_weights = np.zeros_like(layer.weights)
+                                  layer.best_biases = np.zeros_like(layer.biases)
+                              
+                              layer.best_weights = layer.weights
+                              layer.best_biases = layer.biases              
+                    else:
+                        patience_counter += 1            
+                else:
+                    continue_training = False
+                    for layer in layers:
+                        if hasattr(layer, 'weights'):
+                            layer.weights = layer.best_weights
+                            layer.biases = layer.best_biases
+
+        if verbose:
+            print(f"{e + 1}/{epochs}, error_train = {error_train} , train_accuracy = {acc_train}, error_val = {error_val} , val_accuracy = {acc_val} ")
+    return cost_train , cost_val , train_acc , val_acc
+
+
+# **Building a big-enough CNN architecture that would overfit the K-MNIST data. To ensure overfitting , we are considering only small subset of training dataset and training the model for more number of epochs.**
+
+# In[ ]:
+
+
+# Define the neural network architecture as a list of layers
+network = [
+    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
+    Sigmoid(),
+    Convolutional((5, 22, 22), 3, 5),
+    Sigmoid(),
+    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
+    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(100, 10),  # Fully connected layer with 10 output units
+    Softmax()   # Softmax activation function
+]
+
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train_unreg , cost_val_unreg , train_acc_unreg , val_acc_unreg = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain,  # Training input data
+    ytrain,  # Training target data
+    xval[:1000],  # Validation input data
+    yval[:1000],  # Validation target data
+    epochs= 50 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# **Imposing L2 regularizer and plotting the bias-variance curves.**
+
+# In[ ]:
+
+
+# Define the neural network architecture as a list of layers
+network = [
+    Convolutional((1, 28, 28), 3, 8 , 0.0005),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((8, 26, 26), 3, 5 , 0.0005),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((5, 24, 24), 3, 5 , 0.0005),  # Optional additional convolutional layer
+    Sigmoid(),
+    Convolutional((5, 22, 22), 3, 5 , 0.0005),
+    Sigmoid(),
+    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
+    Dense(5 * 20 * 20, 1000 , 0.0005),  # Fully connected layer with 100 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(1000 , 100 , 0.0005),  # Fully connected layer with 1000 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(100, 10 , 0.0005),  # Fully connected layer with 10 output units
+    Softmax()   # Softmax activation function
+]
+
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train_reg , cost_val_reg , train_acc_reg , val_acc_reg = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain,  # Training input data
+    ytrain,  # Training target data
+    xval[:2000],  # Validation input data
+    yval[:2000],  # Validation target data
+    epochs= 50 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# In[ ]:
+
+
+epochs = []
+for epoch in range(1 , 51):
+  epochs.append(epoch)
+
+
+costs_val_unreg = np.squeeze(cost_val_unreg)
+costs_train_unreg = np.squeeze(cost_train_unreg)
+
+costs_val_reg = np.squeeze(cost_val_reg)
+costs_train_reg = np.squeeze(cost_train_reg)
+
+
+# create a figure and axis
+fig, ax = plt.subplots()
+
+# plot err1 against x_list
+ax.plot(epochs ,  costs_train_unreg, label='Error during Training')
+
+# plot err2 against x_list
+ax.plot(epochs , costs_val_unreg , label = 'Error during Validation without Regularization')
+
+# plot errr against x_list
+ax.plot(epochs , costs_val_reg , label = 'Error during Validation with Regularization')
+
+# add labels and title
+ax.set_xlabel('Number of Epochs')
+ax.set_ylabel('Error')
+ax.set_title('Error  against Number of epochs')
+
+# add legend
+ax.legend()
+
+# show the plot
+plt.show()
+
+
+# **Perturbing each of the input images with additive Gaussian noise and reporting its regularization impact.**
+
+# In[ ]:
+
+
+xtrain_noise = xtrain + np.random.randn(*(xtrain.shape))
+
+
+# In[ ]:
+
+
+# Define the neural network architecture as a list of layers
+network = [
+    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
+    Sigmoid(),   # Sigmoid activation function
+    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
+    Sigmoid(),
+    Convolutional((5, 22, 22), 3, 5),
+    Sigmoid(),
+    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
+    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
+    Sigmoid(),  # Sigmoid activation function
+    Dense(100, 10),  # Fully connected layer with 10 output units
+    Softmax()   # Softmax activation function
+]
+
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train_reg_noise , cost_val_reg_noise , train_acc_reg_noise , val_acc_reg_noise = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain_noise,  # Training noisy input data
+    ytrain,  # Training target data
+    xval[:1000],  # Validation input data
+    yval[:1000],  # Validation target data
+    epochs= 25 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# In[ ]:
+
+
+epochs = []
+for epoch in range(1 , 26):
+  epochs.append(epoch)
+
+
+costs_val_reg_noise = np.squeeze(cost_val_reg_noise)
+costs_train_reg_noise = np.squeeze(cost_train_reg_noise)
+
+
+# create a figure and axis
+fig, ax = plt.subplots()
+
+# plot err1 against x_list
+ax.plot(epochs ,  costs_train_reg_noise, label='Error during Training')
+
+# plot err2 against x_list
+ax.plot(epochs , costs_val_reg_noise , label = 'Error during Validation with Noise')
+
+# add labels and title
+ax.set_xlabel('Number of Epochs')
+ax.set_ylabel('Error')
+ax.set_title('Error  against Number of epochs')
+
+# add legend
+ax.legend()
+
+# show the plot
+plt.show()
+
+
+# **Imposing early-stopping as regularizers and plotting the bias-variance curves**
+
+# In[ ]:
+
+
+# Train the neural network
+cost_train , cost_val , train_acc , val_acc = train(
+    network,  # The network architecture
+    binary_cross_entropy,  # Binary cross-entropy loss function
+    binary_cross_entropy_prime,  # Derivative of the loss function
+    xtrain,  # Training noisy input data
+    ytrain,  # Training target data
+    xval[:1000],  # Validation input data
+    yval[:1000],  # Validation target data
+    epochs= 18 ,  # Number of training epochs
+    learning_rate=0.1  # Learning rate for weight updates
+)
+
+
+# In[ ]:
+
+
+epochs = []
+for epoch in range(1 , 51):
+  epochs.append(epoch)
+
+
+# create a figure and axis
+fig, ax = plt.subplots()
+
+# plot err1 against x_list
+ax.plot(epochs ,  costs_train_unreg, label='Train loss without Regularization')
+
+# plot err2 against x_list
+ax.plot(epochs , costs_val_unreg_ , label = 'Validation loss without Regularization')
+
+ax.plot(epochs , costs_val_reg_noise , label = 'Input Data Pertubed with Noise')
+
+ax.plot(epochs , costs_val , label = 'With Early Stopping')
+
+# add labels and title
+ax.set_xlabel('No of epochs'')
+ax.set_ylabel('Cross Entropy Error')
+
+# add legend
+ax.legend()
+
+# show the plot
+plt.show()
+
 
 # In[ ]:
 
