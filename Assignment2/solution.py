@@ -3,7 +3,7 @@
 
 # # Initialization
 
-# In[2]:
+# In[99]:
 
 
 import numpy as np
@@ -25,15 +25,15 @@ from libsvm.svmutil import *
 
 # ### Uncompress compressed files
 
-# In[3]:
+# In[128]:
 
 
-get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d data')
+get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../data')
 
 
 # ### Custom functions
 
-# In[4]:
+# In[177]:
 
 
 def genFromImage(imageDir, size=(8, 8)):
@@ -59,7 +59,7 @@ def genFromImage(imageDir, size=(8, 8)):
 
 # returns X, Y, X_test, Y_test and classStats
 def trainTestSplit(data, train_ratio, func):
-    n = data.shape[0]
+    n = len(data)
     m = int(np.floor(data.shape[1] * train_ratio))
     classStats = {}
     x_train, y_train, x_test, y_test = [[[] for _ in range(n)] for _ in range(4)]
@@ -77,81 +77,21 @@ def imgToFeatures(label, data, stats=False):
         return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0], "data": X }
     return X, Y
 
-def classify(x, classStats, density):
-    label = -1
-    max = -99999
-    sum = 0
-    prob = []
-    for key in classStats:
-        mean = classStats[key]["mean"]
-        cov = classStats[key]["cov"]
-        prior = classStats[key]["prior"]
-        weights = classStats[key]["weights"] if "weights" in classStats[key] else []
-        value = np.log(prior) + density(x, mean, cov, weights)
-        prob.append(value)
-        sum += value
-        if value > max:
-            max, label = value, key
-    return np.r_[[label], (np.array(prob) / sum)]
-
-class metrics:
-    def accuracy(predicted, actual):
-        m = actual.size
-        correctCount = sum([1 if int(predicted[i]) == int(actual[i]) else 0 for i in range(m)])
-        return correctCount / m
-    
-    def confusionMatrix(predicted, actual, n = 5):
-        cnf = np.zeros((n, n), dtype='uint')
-        for i in range(actual.size):
-            cnf[int(actual[i])][int(predicted[i])] += 1
-        return cnf
-    
-    def f1Score(cnf):
-        sum_predict = np.sum(cnf, axis=0)
-        sum_actual  = np.sum(cnf, axis=1)
-        f1 = np.zeros(cnf.shape[1])
-        for i in range(f1.size):
-            TP = cnf[i][i]
-            FP, FN = sum_predict[i] - TP, sum_actual[i] - TP
-            p, r = TP/(TP + FP + 1e-8), TP/(TP + FN + 1e-8)
-            f1[i] = 2 * p * r / (p + r + 1e-8)
-        return f1
-    
-    def print(X, Y, X_test, Y_test, classStats, density, result=True):
-        n_labels = len(classStats)
-        train = np.array([classify(x, classStats, density) for x in X])
-        test = np.array([classify(x, classStats, density) for x in X_test])
-        # train = classify(X, classStats, density)
-        # test = classify(X, classStats, density)
-        y_train, p_train = train.T[0], train.T[1:].T
-        y_test, p_test = test.T[0], test.T[1:].T
-
-        cnf_train = metrics.confusionMatrix(y_train, Y, n_labels)
-        cnf_test = metrics.confusionMatrix(y_test, Y_test, n_labels)
-        acc_train = metrics.accuracy(y_train, Y)
-        acc_test = metrics.accuracy(y_test, Y_test)
-        f1_train = metrics.f1Score(cnf_train)
-        f1_test = metrics.f1Score(cnf_test)
-
-        print("------------------ Train ---------------------")
-        print("Classification Accuracy : ", acc_train)
-        print("F1 Score                : ", f1_train)
-        print("------------------ Test ----------------------")
-        print("Classification Accuracy : ", acc_test)
-        print("F1 Score                : ", f1_test)
-
-        if result:
-            return [acc_train, f1_train], [acc_test, f1_test]
+def stats(label, data, stats=False):
+    X = data
+    Y = label * np.ones(data.shape[0])
+    if stats:
+        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0], "data": X }
+    return X, Y
 
 
 # ### Data extraction
 
-# In[5]:
+# In[130]:
 
 
 dataFolder = "../data"
 imageDir = join(dataFolder, "images")
-imageDataDir = join(dataFolder, "p4_data.csv")
 
 p1 = { "testDir": dataFolder + "/p1_test.csv", "trainDir": dataFolder + "/p1_train.csv" } # regression
 p2 = { "testDir": dataFolder + "/p2_test.csv", "trainDir": dataFolder + "/p2_train.csv" } # regression
@@ -176,7 +116,7 @@ print("(Classification)  p4[data]:", p4["data"].shape)
 print("(Classification)  p5[data]:     ", p5["data"].shape)
 
 
-# In[6]:
+# In[131]:
 
 
 classStats = {}
@@ -205,64 +145,103 @@ p3["X_test"], p3["Y_test"] = splitData(p3["test"])
 p3["X"].shape, p3["Y"].shape, p3["X_test"].shape, p3["Y_test"].shape
 
 
-# # Custom functions for SVM
-
-# In[7]:
+# In[132]:
 
 
-# Compute mean squared error
-def mse(X, Y, W):
-    return (1/2) * (X @ W - Y) @ (X @ W - Y)
+p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(p4["data"], 0.7, imgToFeatures)
 
-# Compute mean absolute error
-def mae(X, Y, W):
-    return np.sum(np.abs(X @ W - Y))
+p4["X"].shape, p4["Y"].shape, p4["X_test"].shape, p4["Y_test"].shape
 
-# Normalize a vector
-def normalize(v):
-    min = v.min()
-    max = v.max()
-    return (v - min) / (max - min)
 
-# Standardize a vector
-def standardize(v):
-    mean = np.mean(v)
-    std = np.std(v)
-    return (v - mean) / std
+# In[178]:
 
-# Normalize and split the training data into features matrix with bias and the result vector
-def parseData(data):
-    m, n = data.shape
-    # data = np.array([normalize(col) for col in data.T]).T
-    X = np.c_[np.ones(m), data.T[:-1].T]
-    Y = data.T[-1].T
-    return X, Y
 
-# Print the required metrics
-def printResult(x_train, y_train, x_test, y_test, func = lambda x : x):
-    x_train = func(x_train)
-    x_test = func(x_test)
+classWiseData = [[] for _ in range(10)]
+for row in p5["data"]:
+    label = int(row[0])
+    classWiseData[label].append(row[1:])
     
-    m, n = x_train.shape
-    w = np.linalg.pinv(x_train) @ y_train
+p5["X"], p5["Y"], p5["X_test"], p5["Y_test"], p5["classStats"] = trainTestSplit(np.array(classWiseData), 0.5, stats)
+p5["X"].shape, p5["Y"].shape, p5["X_test"].shape, p5["Y_test"].shape
 
-    mse_train = mse(x_train, y_train, w)
-    mae_train = mae(x_train, y_train, w)
-    p_train = ttest_ind(x_train @ w, y_train).pvalue
-    mse_test = mse(x_test, y_test, w)
-    mae_test = mae(x_test, y_test, w)
-    p_test = ttest_ind(x_test @ w, y_test).pvalue
+
+# In[134]:
+
+
+fig, ax = plt.subplots(2, 5, figsize=(12, 4))
+for i in range(p4["data"].shape[0]):
+    ax[i // 5][i % 5].imshow(p4["data"][i][0].astype(np.uint8), cmap='gray')
+    ax[i // 5][i % 5].set_title(str(i))
+    ax[i // 5][i % 5].get_xaxis().set_visible(False)
+    ax[i // 5][i % 5].get_yaxis().set_visible(False)
+
+fig.tight_layout()
+
+
+# # Custom common functions
+
+# In[197]:
+
+
+class metrics:
+    def accuracy(predicted, actual):
+        m = actual.size
+        correctCount = sum([1 if int(predicted[i]) == int(actual[i]) else 0 for i in range(m)])
+        return correctCount / m
     
-    print("MSE (train-split)     : ", mse_train)
-    print("MAE (train-split)     : ", mae_train)
-    print("p-value (train-split) : ", p_train)
-
-    print("--------------------------------------")
-
-    print("a) MSE     : ", mse_test)
-    print("b) MAE     : ", mae_test)
-    print("c) p-value : ", p_test)
-    return [mse_train, mae_train, p_train], [mse_test, mae_test, p_test]
+    def confusionMatrix(predicted, actual, n = 5):
+        cnf = np.zeros((n, n), dtype='uint')
+        for i in range(actual.size):
+            cnf[int(actual[i])][int(predicted[i])] += 1
+        return cnf
+    
+    def f1Score(cnf):
+        sum_predict = np.sum(cnf, axis=0)
+        sum_actual  = np.sum(cnf, axis=1)
+        f1 = np.zeros(cnf.shape[1])
+        for i in range(f1.size):
+            TP = cnf[i][i]
+            FP, FN = sum_predict[i] - TP, sum_actual[i] - TP
+            p, r = TP/(TP + FP + 1e-8), TP/(TP + FN + 1e-8)
+            f1[i] = 2 * p * r / (p + r + 1e-8)
+        return f1      
+    
+    def print(pred, Y, pred_test, Y_test, result=False):
+        n_labels = len(np.unique(Y))
+                
+        cnf_train = metrics.confusionMatrix(pred, Y, n_labels)
+        cnf_test = metrics.confusionMatrix(pred_test, Y_test, n_labels)
+        acc_train = metrics.accuracy(pred, Y)
+        acc_test = metrics.accuracy(pred_test, Y_test)
+        f1_train = metrics.f1Score(cnf_train)
+        f1_test = metrics.f1Score(cnf_test)
+        
+        print("------------------ Train ---------------------")
+        print("Classification Accuracy : ", acc_train * 100, "%")
+        print("F1 Score                : ", f1_train)
+        print("------------------ Test ----------------------")
+        print("Classification Accuracy : ", acc_test * 100, "%")
+        print("F1 Score                : ", f1_test)
+        print("Confusion Matrix        : ")
+        print(cnf_test)
+        
+        fig, ax = plt.subplots(1, 2, figsize=(16, 8))
+        ax[0].matshow(cnf_train.T, cmap='GnBu')
+        ax[0].set_xlabel("Predicted")
+        ax[0].set_ylabel("Actual")
+        ax[0].set_title("Confusion Matrix (train)")
+        for (x, y), value in np.ndenumerate(cnf_train):
+            ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
+        
+        ax[1].matshow(cnf_test.T, cmap='GnBu')
+        ax[1].set_xlabel("Predicted")
+        ax[1].set_ylabel("Actual")
+        ax[1].set_title("Confusion Matrix (test)")
+        for (x, y), value in np.ndenumerate(cnf_test):
+            ax[1].text(x, y, f"{value: .0f}", va="center", ha="center")
+        
+        if result:
+            return [acc_train, f1_train], [acc_test, f1_test]
 
 
 # # P1 (SVM)
@@ -325,59 +304,98 @@ acc = np.sum(np.abs(pred - Y_test) < 0.5) / len(Y_test)
 print("Overall Accuracy: ", acc)
 
 
-# # P2 (SVM)
+# # P2 (FLDA)
 # 
 # Implement FLDA for the classification problems in A1 and report the metrics as in A1
 # 
 # **DATA**: `p3train/test.csv`, `images.zip (p4[data])`
 
-# In[55]:
+# In[137]:
 
 
-X, Y = p3["train"][:, :-1], p3["train"][:, -1]
-X_test, Y_test = p3["test"][:, :-1], p3["test"][:, -1]
+class FLDA:
+    def __init__(self):
+        self.num_classes = None
+        self.parameters = None
+        self.first_label = 0
+        self.dimension = 0
 
-def solveFLDA(data, k):
-    x1, x2 = data[data[:, -1] == k][:, :-1], data[data[:, -1] != k][:, :-1]
-    mean1 = np.mean(x1,axis=0)
-    mean2 = np.mean(x2,axis=0)
-    mean_diff = np.subtract(mean1,mean2)
+    def compute_Sb_Sw(self,X,y):
+        self.means = []
+        Sb = np.zeros((self.dimension,self.dimension))
+        Sw = np.zeros((self.dimension,self.dimension))
+        mean = np.mean(X,axis = 0)
+        unique , class_count = np.unique(y,return_counts = True)  
+        for i in range(self.num_classes):
+            self.means.append(np.mean(X[y == i + self.first_label],axis = 0))
+            Sb += class_count[i] * (np.array([self.means[i]-mean]).T@np.array([self.means[i]-mean]))
+        for j in range(len(X)):
+            x = np.array([X[j]])
+            m = np.array([self.means[(y[j]-self.first_label).astype(int)]])
+            Sw += (x-m).T@(x-m)
+        return Sb,Sw 
 
-    cov1 = np.cov(np.transpose(x1))
-    cov2 = np.cov(np.transpose(x2))
+    def compute_w(self,X,y):
+        Sb , Sw = self.compute_Sb_Sw(X,y)
+        e_val , e_vec =  np.linalg.eig(np.linalg.pinv(Sw)@Sb)
+        idxs = np.argsort(e_val)[::-1][:self.num_classes-1]
+        self.parameters = e_vec[:,idxs].T
 
-    # within class spread 
-    SW = np.add(cov1,cov2)
-    
-    # w = (SW^{-1}).(M1-M2)
-    w = np.dot(np.linalg.inv(SW), mean_diff)
-    
-    # normalise W
-    w_norm = w / np.linalg.norm(w)
-    
-    return w_norm
+    def project(self,X):
+        return X @ self.parameters.T
 
-# train one-vs-rest approach
-flda = {}
-for k in range(len(labels)):
-    flda[k] = solveFLDA(p3["train"], k+1);
+    def fit(self, x, y):
+        unique = np.unique(y,return_counts = False)
+        self.first_label = np.min(y)
+        self.num_classes = len(unique)
+        self.dimension = x.shape[1]
+        self.compute_w(x, y)
 
-# get probability estimates of test instances using each model
-prob = np.zeros((len(Y_test), len(labels)));
-for k in range(len(labels)):
-    prob[:, k] = X_test @ flda[k]
+    def predict(self,test_data):
+        projected_means = np.array(self.means)@self.parameters.T
+        projected_data = test_data @ self.parameters.T
+        pred_label = np.zeros(len(test_data))
+        for i in range(len(test_data)):
+            dist = np.sum((projected_means - projected_data[i])**2 , axis = 1)
+            pred_label[i] = np.argmin(dist) + self.first_label
 
-# predict the class with the highest probability
-pred = np.argmax(prob, axis=1);
-acc = np.sum((pred+1) == Y_test) / len(Y_test)    # accuracy
-
-acc
-# Check metrics with parameters as null vector
-# print(mse(X, Y, W))
-# print(mae(X, Y, W))
+        return pred_label
 
 
-# # P3 (SVM)
+# In[200]:
+
+
+p3_model = FLDA()
+p3_model.fit(p3["X"], p3["Y"])
+pred = p3_model.predict(p3["X"])
+pred_test = p3_model.predict(p3["X_test"])
+
+metrics.print(pred, p3["Y"], pred_test, p3["Y_test"])
+
+
+# In[270]:
+
+
+p4_model = FLDA()
+p4_model.fit(p4["X"], p4["Y"])
+pred = p4_model.predict(p4["X"])
+pred_test = p4_model.predict(p4["X_test"])
+
+metrics.print(pred, p4["Y"], pred_test, p4["Y_test"])
+
+
+# In[202]:
+
+
+p5_model = FLDA()
+p5_model.fit(p5["X"], p5["Y"])
+pred = p5_model.predict(p5["X"])
+pred_test = p5_model.predict(p5["X_test"])
+
+metrics.print(pred, p5["Y"], pred_test, p5["Y_test"])
+
+
+# # P3 (Regression)
 # 
 # For the regression problem p1 in A1, overfit the data with over-parameterized models (at least 3). 
 # In the next part, impose different types of regularizers (L2, L1, and a combination of both) and 
@@ -385,152 +403,300 @@ acc
 # 
 # **DATA**: `p1train/test.csv`
 
+# In[158]:
+
+
+# Compute mean squared error
+def mse(X, Y, W):
+    return (1/len(Y)) * (X @ W - Y) @ (X @ W - Y)
+
+# Print the required metrics
+def regression(x_train, y_train, x_test, y_test, func = lambda x : x):
+    x_train = func(x_train)
+    x_test = func(x_test)
+    
+    m, n = x_train.shape
+    w = np.linalg.pinv(x_train) @ y_train
+
+    mse_train = mse(x_train, y_train, w)
+    mae_train = mae(x_train, y_train, w)
+    p_train = ttest_ind(x_train @ w, y_train).pvalue
+    mse_test = mse(x_test, y_test, w)
+    mae_test = mae(x_test, y_test, w)
+    p_test = ttest_ind(x_test @ w, y_test).pvalue
+    
+    print("MSE (train-split)     : ", mse_train)
+    print("MAE (train-split)     : ", mae_train)
+    print("p-value (train-split) : ", p_train)
+
+    print("--------------------------------------")
+
+    print("a) MSE     : ", mse_test)
+    print("b) MAE     : ", mae_test)
+    print("c) p-value : ", p_test)
+    return [mse_train, mae_train, p_train], [mse_test, mae_test, p_test]
+
+
+# In[75]:
+
+
+X, Y = parseData(p1["train"])
+X_test, Y_test = parseData(p1["test"])
+
+# Uniform distribution
+p3["result"] = [[] for _ in range(9)]
+p3["result"][0] = printResult(X, Y, X_test, Y_test, lambda x : np.ones(x.shape[0]).reshape(x.shape[0], 1))
+
+
+# In[76]:
+
+
+p3["result"][1] = printResult(X, Y, X_test, Y_test)
+
+
+# In[77]:
+
+
+def makeQuadratic(data):
+    n = data.shape[1]
+    return np.array([data.T[i] * data.T[j] for i in range(n) for j in range(n) if j <= i]).T
+
+p3["result"][2] = printResult(X, Y, X_test, Y_test, makeQuadratic)
+
+
+# In[78]:
+
+
+def makeCubic(data):
+    n = data.shape[1]
+    return np.array([data.T[i] * data.T[j] * data.T[k] for i in range(n) for j in range(n) for k in range(n) if j <= i and k <= j]).T
+
+p3["result"][3] = printResult(X, Y, X_test, Y_test, makeCubic)
+
+
+# ## Non-Linear regression (4)
+# $h_3(x) = h_1(h_1(x))$
+
+# In[79]:
+
+
+p3["result"][4] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(x)))
+
+
+# ## Non-Linear regression (5)
+# $h_4(x) = h_1(h_2(x))$
+
+# In[80]:
+
+
+p3["result"][5] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeCubic(x)))
+
+
+# ## Non-Linear regression (6)
+# $h_5(x) = h_2(h_2(x))$
+
+# In[81]:
+
+
+p3["result"][6] = printResult(X, Y, X_test, Y_test, lambda x : makeCubic(makeCubic(x)))
+
+
+# ## Non-Linear regression (7)
+# $h_6(x) = h_1(h_1(h_2(x)))$
+
+# In[90]:
+
+
+p3["result"][7] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(makeCubic(x))))
+
+
+# ## Non-Linear regression (8)
+# $h_7(x) = h_1(h_1(h_1(h_1(x))))$
+
+# In[ ]:
+
+
+p3["result"][8] = printResult(X, Y, X_test, Y_test, lambda x : makeQuadratic(makeQuadratic(makeQuadratic(makeQuadratic(x)))))
+
+
+# In[89]:
+
+
+results = np.array(p3["result"])[1:7]
+fig, ax = plt.subplots(1, 1, figsize=(5, 4))
+ax.plot([i + 1 for i in range(6)], [((row[0][0])) for row in results], label="train", marker='o')
+ax.plot([i + 1 for i in range(6)], [((row[1][0])) for row in results], label="test", marker='x')
+ax.set_xlabel("Complexity -->")
+ax.set_ylabel("MSE")
+ax.legend()
+ax.set_title("MSE vs complexity")
+
+fig.tight_layout()
+
+
 # # Custom functions for Neural Networks
 
-# In[ ]:
-
-
-max_float = np.finfo("float64").max
-max_exp = np.log(max_float)
-
-def normal(x, mean ,cov, *args):
-    n = len(mean)
-    val = -0.5 * (x - mean) @ np.linalg.pinv(cov) @ (x - mean)
-    return np.exp(val) if np.abs(val) < max_exp else (1/max_float) / ((2 * np.pi * np.linalg.det(cov)) ** (n/2) + 1e-8)
-
-def logGMM(x, mean, cov, weights, *args):
-    k = len(weights)
-    val = np.log(np.sum([weights[i] * normal(x, mean[i], cov[i]) for i in range(k)]) + 1e-8)
-    return val
-
-def logNormal(x, mean, cov, *args):
-    n = mean.shape[0]
-    return - 0.5 * (n * np.log(2 * np.pi * np.linalg.det(cov)) + ((x - mean) @ np.linalg.inv(cov) @ (x - mean).T))
-
-# assume independent features
-def logExp(x, mean, *args):
-    return - np.log(np.abs(np.prod(mean))) - np.reciprocal(mean) @ x
-
-def naiveLogNormal(x, u, v, *args):
-    return -0.5 * np.sum([np.log(2 * np.pi * v[i][i]) + (x[i] - u[i]) * (x[i] - u[i])/v[i][i] for i in range(u.shape[0]) if v[i][i] > 0])
-
-def classify(x, classStats, density):
-    label = -1
-    max = -99999
-    sum = 0
-    prob = []
-    for key in classStats:
-        mean = classStats[key]["mean"]
-        cov = classStats[key]["cov"]
-        prior = classStats[key]["prior"]
-        weights = classStats[key]["weights"] if "weights" in classStats[key] else []
-        value = np.log(prior) + density(x, mean, cov, weights)
-        prob.append(value)
-        sum += value
-        if value > max:
-            max, label = value, key
-    return np.r_[[label], (np.array(prob) / sum)]
-
+# ## 1. Multi-Layer Perceptron
 
 # In[ ]:
 
 
-class metrics:
-    def accuracy(predicted, actual):
-        m = actual.size
-        correctCount = sum([1 if int(predicted[i]) == int(actual[i]) else 0 for i in range(m)])
-        return correctCount / m
+class MLP:
+    def __init__(self, sizes, activation='sigmoid', activation_last_layer='softmax', loss='ce', learning_rate=0.01, random_seed=42):
+        np.random.seed(random_seed)
+        self.num_layers = len(sizes)
+        self.sizes = sizes
+        self.activation = activation
+        self.activation_last_layer = activation_last_layer
+        self.loss = loss
+        self.learning_rate = learning_rate
+        self.weights = [np.random.randn(sizes[i], sizes[i-1]) / np.sqrt(sizes[i-1]) for i in range(1, self.num_layers)]
+        self.biases = [np.random.randn(sizes[i], 1) for i in range(1, self.num_layers)]
+
+    def sigmoid(self, z):
+        return 1.0 / (1.0 + np.exp(-z))
+
+    def sigmoid_prime(self, z):
+        return self.sigmoid(z) * (1 - self.sigmoid(z))
+
+    def relu(self, z):
+        return np.maximum(0, z)
+
+    def relu_prime(self, z):
+        return np.where(z > 0, 1, 0)
+
+
+    def softmax(self, z):
+        exp_z = np.exp(z - np.max(z))
+        return exp_z / np.sum(exp_z, axis=0, keepdims=True)
+
+    def softmax_prime(self, z):
+        return self.softmax(z) * (1 - self.softmax(z))
+
+    def cross_entropy_loss(self, y, y_pred):
+        m = y.shape[1]
+        cost = -1/m * np.sum(y * np.log(y_pred + 1e-8))
+        return np.squeeze(cost)
+
+    def cross_entropy_loss_prime(self, y, y_pred):
+        return y_pred - y
+
+    def squared_error_loss(self, y, y_pred):
+        m = y.shape[1]
+        cost = 1/(2*m) * np.sum((y_pred - y)**2)
+        return np.squeeze(cost)
+
+    def squared_error_loss_prime(self, y, y_pred):
+        return y_pred - y
+
+    def forward(self, X):
+        a = X.T
+        for i in range(self.num_layers-1):
+            z = np.dot(self.weights[i], a) + self.biases[i]
+            if i == self.num_layers-2:
+                if self.activation_last_layer == 'softmax':
+                    a = self.softmax(z)
+            else:
+                if self.activation == 'sigmoid':
+                    a = self.sigmoid(z)
+                elif self.activation == 'relu':
+                    a = self.relu(z)
+                    
+        return a.T
+
+
+    def backward(self, X, y):
+        m = X.shape[0]
+        a = [X.T]
+        z_s = []
+        for i in range(self.num_layers-1):
+            z = np.dot(self.weights[i], a[-1]) + self.biases[i]
+            z_s.append(z)
+            if i == self.num_layers-2:
+                if self.activation_last_layer == 'softmax':
+                    a.append(self.softmax(z))
+            else:
+                if self.activation == 'sigmoid':
+                    a.append(self.sigmoid(z))
+                elif self.activation == 'relu':
+                    a.append(self.relu(z))
+                    
+        if self.loss == 'ce':
+            d_a = self.cross_entropy_loss_prime(y.T, a[-1])
+        elif self.loss == 'mse':
+            d_a = self.squared_error_loss_prime(y.T, a[-1])
+            
+        d_z = d_a
+        d_weights = []
+        d_biases = []
+        for i in range(self.num_layers-2, -1, -1):
+            d_weights.insert(0, np.dot(d_z, a[i].T) / m)
+            d_biases.insert(0, np.sum(d_z, axis=1, keepdims=True) / m)
+            if i > 0:
+                if self.activation == 'sigmoid':
+                    d_z = np.dot(self.weights[i].T, d_z) * self.sigmoid_prime(z_s[i-1])
+                elif self.activation == 'relu':
+                    d_z = np.dot(self.weights[i].T, d_z) * self.relu_prime(z_s[i-1])
+                    
+        return d_weights, d_biases
     
-    def confusionMatrix(predicted, actual, n = 5):
-        cnf = np.zeros((n, n), dtype='uint')
-        for i in range(actual.size):
-            cnf[int(actual[i])][int(predicted[i])] += 1
-        return cnf
-    
-    def f1Score(cnf):
-        sum_predict = np.sum(cnf, axis=0)
-        sum_actual  = np.sum(cnf, axis=1)
-        f1 = np.zeros(cnf.shape[1])
-        for i in range(f1.size):
-            TP = cnf[i][i]
-            FP, FN = sum_predict[i] - TP, sum_actual[i] - TP
-            p, r = TP/(TP + FP + 1e-8), TP/(TP + FN + 1e-8)
-            f1[i] = 2 * p * r / (p + r + 1e-8)
-        return f1
-    
-    def roc(predict, actual, prob, ax, labels=[0, 1], thresolds=[0, 0.2, 0.4, 0.6, 0.8, 1]):
-        for label in labels:
-            tp, fp, tn, fn = [np.zeros(len(thresolds)) for _ in range(4)]
-            for t in range(len(thresolds)):
-                for i in range(actual.shape[0]):
-                    if float(prob[i][label]) >= thresolds[t]:
-                        if actual[i] == 0:
-                            tp[t] += 1.0
-                        else:
-                            fp[t] += 1.0
-                    else:
-                        if actual[i] == 0:
-                            fn[t] += 1.0
-                        else:
-                            tn[t] += 1.0
-                        
-            fpr = fp / (fp + tn + 1e-8)
-            tpr = tp / (tp + fn + 1e-8)
-            ax.plot(fpr, tpr, label=label, marker='x')        
+
+    def train(self, X_train, Y_train, X_val, Y_val, num_epochs, batch_size): 
+        n_labels = len(np.unique(Y_train))
+        y_train, y_val = [np.zeros((y.shape[0], n_labels)) for y in [Y_train, Y_val]]
+        for i, j in enumerate(Y_train):
+            y_train[i][int(j)] = 1
+        for i, j in enumerate(Y_val):
+            y_val[i][int(j)] = 1   
+            
+        train_losses = []
+        val_losses = []
+        train_accs = []
+        val_accs = []
         
-        ax.set_xlabel("False positive rate")
-        ax.set_ylabel("True positive rate")
-        ax.legend()
-        
-    
-    def print(X, Y, X_test, Y_test, classStats, density, result=True):
-        n_labels = len(classStats)
-        train = np.array([classify(x, classStats, density) for x in X])
-        test = np.array([classify(x, classStats, density) for x in X_test])
-        # train = classify(X, classStats, density)
-        # test = classify(X, classStats, density)
-        y_train, p_train = train.T[0], train.T[1:].T
-        y_test, p_test = test.T[0], test.T[1:].T
+        for i in range(num_epochs):
+            permutation = np.random.permutation(X_train.shape[0])
+            X_train = X_train[permutation, :]
+            y_train = y_train[permutation]
+            
+            for j in range(0, X_train.shape[0], batch_size):
                 
-        cnf_train = metrics.confusionMatrix(y_train, Y, n_labels)
-        cnf_test = metrics.confusionMatrix(y_test, Y_test, n_labels)
-        acc_train = metrics.accuracy(y_train, Y)
-        acc_test = metrics.accuracy(y_test, Y_test)
-        f1_train = metrics.f1Score(cnf_train)
-        f1_test = metrics.f1Score(cnf_test)
-        
-        print("------------------ Train ---------------------")
-        print("Classification Accuracy : ", acc_train)
-        print("F1 Score                : ", f1_train)
-        print("------------------ Test ----------------------")
-        print("Classification Accuracy : ", acc_test)
-        print("F1 Score                : ", f1_test)
-        # print("Confusion Matrix        : ")
-        # print(cnf_test)
-        
-        fig, ax = plt.subplots(2, 2, figsize=(16, 16))
-        ax[0][0].matshow(cnf_train.T, cmap='GnBu')
-        ax[0][0].set_xlabel("Predicted")
-        ax[0][0].set_ylabel("Actual")
-        ax[0][0].set_title("Confusion Matrix (train)")
-        for (x, y), value in np.ndenumerate(cnf_train):
-            ax[0][0].text(x, y, f"{value: d}", va="center", ha="center")
-        
-        ax[0][1].matshow(cnf_test.T, cmap='GnBu')
-        ax[0][1].set_xlabel("Predicted")
-        ax[0][1].set_ylabel("Actual")
-        ax[0][1].set_title("Confusion Matrix (test)")
-        for (x, y), value in np.ndenumerate(cnf_test):
-            ax[0][1].text(x, y, f"{value: d}", va="center", ha="center")
-        
-        thresolds = [i/100 for i in range(100)]
-        metrics.roc(y_train, Y, p_train, ax[1][0], thresolds=thresolds)
-        metrics.roc(y_test, Y_test, p_test, ax[1][1], thresolds=thresolds)
-        ax[1][0].set_title("ROC (train)")
-        ax[1][1].set_title("ROC (test)")
-        
-        if result:
-            return [acc_train, f1_train], [acc_test, f1_test]
+                X_batch = X_train[j : j + batch_size, :]
+                y_batch = y_train[j : j + batch_size]
+                
+                d_weights, d_biases = self.backward(X_batch, y_batch)
+                
+                for k in range(len(self.weights)):
+                    self.weights[k] -= self.learning_rate * d_weights[k]
+                    self.biases[k] -= self.learning_rate * d_biases[k]
+                    
+            y_pred_train = self.forward(X_train)
+            y_pred_val = self.forward(X_val)
+            
+            if self.loss == 'ce':
+                train_loss = self.cross_entropy_loss(y_train, y_pred_train)
+                val_loss = self.cross_entropy_loss(y_val, y_pred_val)
+            elif self.loss == 'mse':
+                train_loss = self.squared_error_loss(y_train, y_pred_train)
+                val_loss = self.squared_error_loss(y_val, y_pred_val)
+                
+            train_losses.append(train_loss)
+            val_losses.append(val_loss)
+            
+            acc_params_train = [np.argmax(y_train, axis=1), np.argmax(y_pred_train, axis=1)]
+            acc_params_val = [np.argmax(y_val, axis=1), np.argmax(y_pred_val, axis=1)]
+            
+            train_acc = metrics.accuracy(*acc_params_train)
+            val_acc = metrics.accuracy(*acc_params_val)
+            
+            train_accs.append(train_acc)
+            val_accs.append(val_acc)
+            
+            # train_f1 = metrics.f1Score(metrics.confusionMatrix(*acc_params_train, n_labels))
+            # val_f1 = metrics.f1Score(metrics.confusionMatrix(*acc_params_val, n_labels))
+            
+            print(f"Epoch {i+1}: \t  train_loss = {train_loss:.2f}  \tval_loss = {val_loss:.2f} \t  train_acc = {train_acc:.2f}  \t val_acc = {val_acc:.2f}")
+        return train_losses, val_losses, train_accs, val_accs
 
 
 # # P4 (Neural Networks, MLP)
@@ -542,537 +708,75 @@ class metrics:
 # 
 # Report the accuracy and F1 scores with all the considered configurations.
 # 
-# **DATA:** `p3train/test.csv`
+# **DATA:** `images.zip (p4['data'])`
 
-# ## Data Handling
+# In[276]:
 
-# In[ ]:
 
+mlp = [[] for _ in range(4)]
+n_labels = len(np.unique(p4['Y']))
 
-p3["train"].shape, p3["test"].shape
+# Shuffle the training data randomly
+indices = np.arange(p4['X'].shape[0])
+np.random.shuffle(indices)
 
+s = int(0.7 * p4['X'].shape[0])
+xtrain, xval = p4['X'][indices[:s]], p4['X'][indices[s:]]
+ytrain, yval = p4['Y'][indices[:s]], p4['Y'][indices[s:]]
 
-# In[ ]:
+layers = [xtrain.shape[1], 128, 64, 32, n_labels]
+mlp[0] = MLP(layers, 'sigmoid', 'softmax','ce', learning_rate = 0.1)
 
+train_losses, val_losses, train_accs, val_accs = mlp[0].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-classStats = {}
-for row in p3["train"]:
-    label = int(row[-1]) - 1
-    if label in classStats:
-        classStats[label].append(row[:-1])
-    else:
-        classStats[label] = [row[:-1]]
 
-# classStats = [np.array(data) for data in classStats]
-for i in range(len(classStats)):
-    data = np.array(classStats[i])
-    classStats[i] = { "mean": np.mean(data, axis=0), "cov": np.cov(data.T), "prior": data.shape[0], "data": data }
+# In[277]:
 
 
-# In[ ]:
+layers = [xtrain.shape[1], 256, 128, 64, 32, n_labels]
+mlp[1] = MLP(layers, 'relu', 'softmax','ce', learning_rate = 0.01)
 
+train_losses, val_losses, train_accs, val_accs = mlp[1].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-def splitData(data):
-    # X = np.array([normalize(col) for col in data.T[:-1]]).T
-    X = data.T[:-1].T
-    Y = data.T[-1].T.astype("int") - 1
-    return X, Y
 
-X, Y = splitData(p3["train"])
-X_test, Y_test = splitData(p3["test"])
+# In[278]:
 
-X.shape, Y.shape, X_test.shape, Y_test.shape
 
+layers = [xtrain.shape[1], 128, 64, 32, n_labels]
+mlp[2] = MLP(layers, 'sigmoid', 'softmax','mse', learning_rate = 0.01)
 
-# ## Bayes' classifier with normal distribution
+train_losses, val_losses, train_accs, val_accs = mlp[2].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-# In[ ]:
 
+# In[279]:
 
-p3["result"] = [[] for _ in range(5)]
-p3["result"][0] = metrics.print(X, Y, X_test, Y_test, classStats, logNormal)
 
+layers = [xtrain.shape[1], 128, 64, 32, n_labels]
+mlp[3] = MLP(layers, 'relu', 'softmax','mse', learning_rate = 0.1)
 
-# ## Bayes' classifier with exponential distribution
+train_losses, val_losses, train_accs, val_accs = mlp[3].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-# In[ ]:
 
+# #### Final accuracy and F1 score
 
-p3["result"][1] = metrics.print(X, Y, X_test, Y_test, classStats, logExp)
+# In[280]:
 
 
-# ## Bayes' classifier with GMM distribution
+models = ["3 hidden layers, activation function: 'sigmoid', loss function: 'cross-entropy'",
+         "4 hidden layers, activation function: 'relu', loss function: 'mean squared error'",
+         "3 hidden layers, activation function: 'sigmoid', loss function: 'cross-entropy'",
+         "3 hidden layers, activation function: 'relu', loss function: 'mean squared error'"]
 
-# In[ ]:
-
-
-def printGmmP3(number_of_guassians , max_iter = 50):
-    classStatsGMM = {}
-    for label in classStats:
-        classStatsGMM[label] = { "prior": classStats[label]["prior"] }
-        classStatsGMM[label]["weights"], classStatsGMM[label]["mean"], classStatsGMM[label]["cov"] = em(classStats[label]["data"], number_of_guassians, max_iter)
-        print("weights of class ", str(label + 1), ": ", classStatsGMM[label]["weights"])
-
-    metrics.print(X, Y, X_test, Y_test, classStatsGMM, logGMM, result=False)
-
-
-# In[ ]:
-
-
-printGmmP3(2)
-
-
-# In[ ]:
-
-
-printGmmP3(5)
-
-
-# In[ ]:
-
-
-printGmmP3(8)
-
-
-# ## Logistic Regression
-
-# In[ ]:
-
-
-train_data = p3["train"]
-test_data = p3["test"]
-
-# Split data into features and labels
-X_train = train_data[:, :-1]
-y_train_orig = train_data[:, -1]
-X_test = test_data[:, :-1]
-y_test_orig = test_data[:, -1]
-
-# One-hot encode target variable
-num_classes = 5
-num_samples = y_train_orig.shape[0]
-y_train = np.zeros((num_samples, num_classes))
-for i in range(num_samples):
-    y_train[i, int(y_train_orig[i]) - 1] = 1
-
-
-# Define sigmoid function
-def sigmoid(x):
-    return 1 / (1 + np.exp(-x))
-
-
-# Define softmax function
-def softmax(x):
-    exp_x = np.exp(x)
-    return exp_x / np.sum(exp_x, axis=1, keepdims=True)
-
-
-# Initialize weights and biases
-num_features = X_train.shape[1]
-W = np.random.randn(num_features, num_classes)
-b = np.random.randn(num_classes)
-
-# Set hyperparameters
-learning_rate = 0.1
-num_iterations = 1000
-epsilon = 1e-8
-
-# Train model using gradient descent
-prev_loss = float('inf')
-for i in range(num_iterations):
-    # Forward propagation
-    z = np.dot(X_train, W) + b
-    y_pred = softmax(z)
-
-    # Compute loss
-    loss = -np.sum(y_train * np.log(y_pred + epsilon)) / num_samples
-
-    # Backward propagation
-    dz = y_pred - y_train
-    dW = np.dot(X_train.T, dz) / num_samples
-    db = np.sum(dz, axis=0) / num_samples
-
-    # Update weights and biases
-    W -= learning_rate * dW
-    b -= learning_rate * db
-
-    # Check stopping criterion
-    if prev_loss - loss < epsilon:
-        print('Stopping criterion met')
-        break
-
-    prev_loss = loss
-
-# Evaluate model on test set
-z = np.dot(X_test, W) + b
-y_pred = np.argmax(softmax(z), axis=1) + 1
-accuracy = np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
-print('Test accuracy:', accuracy)
-
-
-z_train = np.dot(X_train, W) + b
-y_train_pred = np.argmax(softmax(z_train), axis=1) + 1
-train_loss = -np.sum(y_train * np.log(softmax(z_train) + epsilon)) / num_samples
-train_error_rate = 1 - np.sum(y_train_pred == y_train_orig) / y_train_orig.shape[0]
-print('Training empirical risk:', train_loss)
-print('Training error rate:', train_error_rate)
-
-# Compute empirical risk on test data
-num_samples_test = y_test_orig.shape[0]
-y_test = np.zeros((num_samples_test, num_classes))
-for i in range(num_samples_test):
-    y_test[i, int(y_test_orig[i]) - 1] = 1
-
-z_test = np.dot(X_test, W) + b
-test_loss = -np.sum(y_test * np.log(softmax(z_test) + epsilon)) / num_samples_test
-test_error_rate = 1 - np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
-print('Test empirical risk:', test_loss)
-print('Test error rate:', test_error_rate)
-
-
-
-num_classes = len(np.unique(y_test_orig))
-confusion_matrix = np.zeros((num_classes, num_classes))
-for i in range(len(y_test_orig)):
-    true_class = int(y_test_orig[i] - 1)
-    predicted_class = int(y_pred[i] - 1)
-    confusion_matrix[true_class, predicted_class] += 1
-# print('Confusion matrix:')
-# print(confusion_matrix)
-
-
-num_classes = len(np.unique(y_test_orig))
-f1_scores = np.zeros(num_classes)
-for i in range(num_classes):
-    true_positives = confusion_matrix[i, i]
-    false_positives = np.sum(confusion_matrix[:, i]) - true_positives
-    false_negatives = np.sum(confusion_matrix[i, :]) - true_positives
-    precision = true_positives / (true_positives + false_positives + 1e-8)
-    recall = true_positives / (true_positives + false_negatives + 1e-8)
-    f1_scores[i] = 2 * precision * recall / (precision + recall + 1e-8)
-print('Class-wise F1 score:')
-print(f1_scores)
-
-# from matplotlib import pyplot as plt
-
-# # Choose two classes
-# class_1 = 5
-# class_2 = 3
-
-# # Get predicted probabilities for the two classes
-# y_class_1 = y_pred == class_1
-# y_class_2 = y_pred == class_2
-# y_prob_1 = softmax(z)[:, class_1 - 1]
-# y_prob_2 = softmax(z)[:, class_2 - 1]
-
-# # Compute true positive rate and false positive rate
-# num_thresholds = 100
-# tpr = np.zeros(num_thresholds)
-# fpr = np.zeros(num_thresholds)
-# for i in range(num_thresholds):
-#     threshold = i / (num_thresholds - 1)
-#     tp = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
-#     fp = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
-#     tn = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-#     fn = np.sum((y_prob_2 < threshold) & (y_class_2 == False))
-#     tpr[i] = tp / (tp + fn + 1e-8)
-#     fpr[i] = fp / (fp + tn + 1e-8)
-
-# # Plot RoC curve and confusion matrix
-# fig, ax = plt.subplots(2, 1, figsize=(8, 16))
-# ax[0].matshow(confusion_matrix, cmap='GnBu')
-# ax[0].set_xlabel("Predicted")
-# ax[0].set_ylabel("Actual")
-# ax[0].set_title("Confusion Matrix")
-# for (x, y), value in np.ndenumerate(confusion_matrix):
-#     ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
-
-# ax[1].plot(fpr, tpr, marker='x')
-# ax[1].set_xlabel("False positive rate")
-# ax[1].set_ylabel("True positive rate")                     
-# ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
-
-# fig.tight_layout()
-
-# Choose two classes
-class_1 = 1
-class_2 = 2
-# Get predicted probabilities for the two classes
-y_class_1 = y_pred == class_1
-y_class_2 = y_pred == class_2
-y_prob_1 = softmax(z)[:, class_1 - 1]
-y_prob_2 = softmax(z)[:, class_2 - 1]
-
-# Compute true positive rate and false positive rate for both classes
-num_thresholds = 100
-tpr_class_1 = np.zeros(num_thresholds)
-fpr_class_1 = np.zeros(num_thresholds)
-tpr_class_2 = np.zeros(num_thresholds)
-fpr_class_2 = np.zeros(num_thresholds)
-
-for i in range(num_thresholds):
-    threshold = i / (num_thresholds - 1)
-    tp_class_1 = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
-    fn_class_1 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
-    tn_class_1 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-    fp_class_1 = np.sum((y_prob_2 >= threshold) & (y_class_2 == False))
-    tpr_class_1[i] = tp_class_1 / (tp_class_1 + fn_class_1 + 1e-8)
-    fpr_class_1[i] = fp_class_1 / (fp_class_1 + tn_class_1 + 1e-8)
-    
-    tp_class_2 = np.sum((y_prob_2 >= threshold) & (y_class_2 == True))
-    fn_class_2 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-    tn_class_2 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
-    fp_class_2 = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
-    tpr_class_2[i] = tp_class_2 / (tp_class_2 + fn_class_2 + 1e-8)
-    fpr_class_2[i] = fp_class_2 / (fp_class_2 + tn_class_2 + 1e-8)
-
-# Plot RoC curves and confusion matrix
-fig, ax = plt.subplots(2, 2, figsize=(12, 12))
-ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
-ax[0, 0].set_xlabel("Predicted")
-ax[0, 0].set_ylabel("Actual")
-ax[0, 0].set_title("Confusion Matrix")
-for (x, y), value in np.ndenumerate(confusion_matrix):
-    ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
-
-ax[0, 1].plot(fpr_class_1, tpr_class_1, marker='x')
-ax[0, 1].set_xlabel("False positive rate")
-ax[0, 1].set_ylabel("True positive rate")                     
-ax[0, 1].set_title("ROC curve for class {}".format(class_1))
-
-ax[1, 0].plot(fpr_class_2, tpr_class_2, marker='x')
-ax[1, 0].set_xlabel("False positive rate")
-ax[1, 0].set_ylabel("True Positive rate")
-ax[1, 0].set_title("ROC curve for class {}".format(class_2))
-
-ax[1, 1].plot(fpr_class_1, tpr_class_1, marker='x', label="Class {}".format(class_1))
-ax[1, 1].plot(fpr_class_2, tpr_class_2, marker='o', label="Class {}".format(class_2))
-ax[1, 1].set_xlabel("False positive rate")
-ax[1, 1].set_ylabel("True positive rate")
-ax[1, 1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
-ax[1, 1].legend()
-
-fig.tight_layout()
-plt.show()
-
-
-# ## Linear classifier using one vs all approach
-
-# In[ ]:
-
-
-data = p3["train"]
-X = data[:, :-1]  # Features
-y = data[:, -1]   # Labels
-
-# One-hot encode target variable
-num_classes = 5
-num_samples = y.shape[0]
-y_encoded = np.zeros((num_samples, num_classes))
-for i in range(num_samples):
-    y_encoded[i, int(y[i]) - 1] = 1
-
-# Add a column of 1s to X for bias term
-X = np.hstack((X, np.ones((num_samples, 1))))
-
-# Initialize weights
-num_features = X.shape[1]
-W = np.random.randn(num_features, num_classes)
-
-# Set hyperparameters
-learning_rate = 0.01
-num_iterations = 1000
-epsilon = 1e-8
-
-# Train model using gradient descent
-prev_loss = float('inf')
-for i in range(num_iterations):
-    # Forward propagation
-    z = np.dot(X, W)
-    y_pred = np.exp(z) / np.sum(np.exp(z), axis=1, keepdims=True)
-
-    # Compute loss
-    loss = -np.sum(y_encoded * np.log(y_pred + epsilon)) / num_samples
-
-    # Backward propagation
-    dz = y_pred - y_encoded
-    dW = np.dot(X.T, dz) / num_samples
-
-    # Update weights
-    W -= learning_rate * dW
-
-    # Check stopping criterion
-    if prev_loss - loss < epsilon:
-        print('Stopping criterion met')
-        break
-
-    prev_loss = loss
-
-# Evaluate model on test set
-X_test = test_data[:, :-1]
-y_test_orig = test_data[:, -1]
-num_test_samples = y_test_orig.shape[0]
-
-# One-hot encode target variable
-y_test = np.zeros((num_test_samples, num_classes))
-for i in range(num_test_samples):
-    y_test[i, int(y_test_orig[i]) - 1] = 1
-
-# Add a column of 1s to X_test for bias term
-X_test = np.hstack((X_test, np.ones((num_test_samples, 1))))
-
-# Compute predictions on test set
-z_test = np.dot(X_test, W)
-y_test_pred = np.argmax(z_test, axis=1) + 1
-
-# Compute test accuracy
-test_accuracy = np.sum(y_test_pred == y_test_orig) / num_test_samples
-print('Test accuracy:', test_accuracy)
-
-conf_matrix = np.zeros((num_classes, num_classes))
-for i in range(num_test_samples):
-    true_class = int(y_test_orig[i]) - 1
-    pred_class = int(y_test_pred[i]) - 1
-    conf_matrix[true_class, pred_class] += 1
-print('Confusion matrix:')
-print(conf_matrix)
-
-# Compute class-wise F1 score
-f1_scores = []
-for c in range(num_classes):
-    tp = conf_matrix[c,c]
-    fp = np.sum(conf_matrix[:,c]) - tp
-    fn = np.sum(conf_matrix[c,:]) - tp
-    precision = tp / (tp + fp + epsilon)
-    recall = tp / (tp + fn + epsilon)
-    f1 = 2 * precision * recall / (precision + recall + epsilon)
-    f1_scores.append(f1)
-print('Class-wise F1 score:', f1_scores)
-
-# Compute predictions on test set
-z_test = np.dot(X_test, W)
-y_test_prob = np.exp(z_test) / np.sum(np.exp(z_test), axis=1, keepdims=True)
-y_test_pred = np.argmax(z_test, axis=1) + 1
-
-# # Choose two classes for ROC curve
-# class1 = 1
-# class2 = 2
-
-# # Compute false positive rate and true positive rate for different thresholds
-# fpr = []
-# tpr = []
-# num_thresholds = 100
-# for i in range(num_thresholds):
-#     threshold = i / num_thresholds
-#     tp = 0
-#     fp = 0
-#     tn = 0
-#     fn = 0
-#     for j in range(num_test_samples):
-#         if y_test_orig[j] == class1:
-#             if y_test_prob[j][class1-1] >= threshold:
-#                 tp += 1
-#             else:
-#                 fn += 1
-#         elif y_test_orig[j] == class2:
-#             if y_test_prob[j][class1-1] >= threshold:
-#                 fp += 1
-#             else:
-#                 tn += 1
-#     fpr.append(fp / (fp + tn))
-#     tpr.append(tp / (tp + fn))
-
-# # Plot RoC curve and confusion matrix
-# fig, ax = plt.subplots(2, 1, figsize=(8, 16))
-# ax[0].matshow(confusion_matrix, cmap='GnBu')
-# ax[0].set_xlabel("Predicted")
-# ax[0].set_ylabel("Actual")
-# ax[0].set_title("Confusion Matrix")
-# for (x, y), value in np.ndenumerate(confusion_matrix):
-#     ax[0].text(x, y, f"{value: .0f}", va="center", ha="center")
-
-# ax[1].plot(fpr, tpr, marker='x')
-# ax[1].set_xlabel("False positive rate")
-# ax[1].set_ylabel("True positive rate")                     
-# ax[1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
-
-# fig.tight_layout()
-# Choose two classes for ROC curve
-class1 = 1
-class2 = 2
-
-# Choose two classes for ROC curve
-class1 = 1
-class2 = 2
-
-# Compute false positive rate and true positive rate for different thresholds
-fpr_class1 = []
-tpr_class1 = []
-fpr_class2 = []
-tpr_class2 = []
-num_thresholds = 100
-for i in range(num_thresholds):
-    threshold = i / num_thresholds
-    tp_class1 = 0
-    fp_class1 = 0
-    tn_class1 = 0
-    fn_class1 = 0
-    tp_class2 = 0
-    fp_class2 = 0
-    tn_class2 = 0
-    fn_class2 = 0
-    for j in range(num_test_samples):
-        if y_test_orig[j] == class1:
-            if y_test_prob[j][class1-1] >= threshold:
-                tp_class1 += 1
-            else:
-                fn_class1 += 1
-        elif y_test_orig[j] == class2:
-            if y_test_prob[j][class1-1] >= threshold:
-                fp_class2 += 1
-            else:
-                tn_class2 += 1
-        if y_test_orig[j] == class2:
-            if y_test_prob[j][class2-1] >= threshold:
-                tp_class2 += 1
-            else:
-                fn_class2 += 1
-        elif y_test_orig[j] == class1:
-            if y_test_prob[j][class2-1] >= threshold:
-                fp_class1 += 1
-            else:
-                tn_class1 += 1
-    fpr_class1.append(fp_class1 / (fp_class1 + tn_class1))
-    tpr_class1.append(tp_class1 / (tp_class1 + fn_class1))
-    fpr_class2.append(fp_class2 / (fp_class2 + tn_class2))
-    tpr_class2.append(tp_class2 / (tp_class2 + fn_class2))
-
-# Plot RoC curves and confusion matrix
-fig, ax = plt.subplots(2, 2, figsize=(12, 12))
-ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
-ax[0, 0].set_xlabel("Predicted")
-ax[0, 0].set_ylabel("Actual")
-ax[0, 0].set_title("Confusion Matrix")
-for (x, y), value in np.ndenumerate(confusion_matrix):
-    ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
-
-ax[0, 1].plot(fpr_class1, tpr_class1, marker='x')
-ax[0, 1].set_xlabel("False positive rate")
-ax[0, 1].set_ylabel("True positive rate")                     
-ax[0, 1].set_title("ROC curve for class {}".format(class1))
-
-ax[1, 0].plot(fpr_class2, tpr_class2, marker='x')
-ax[1, 0].set_xlabel("False positive rate")
-ax[1, 0].set_ylabel("True positive rate")                     
-ax[1, 0].set_title("ROC curve for class {}".format(class2))
-
-ax[1, 1].plot(fpr_class1, tpr_class1, marker='x', label=f"class {class1}")
-ax[1, 1].plot(fpr_class2, tpr_class2, marker='o', label=f"class {class2}")
-ax[1, 1].set_xlabel("False positive rate")
-ax[1, 1].set_ylabel("True positive rate")
-ax[1, 1].set_title("ROC curve for classes {} and {}".format(class1, class2))
-ax[1, 1].legend()
-plt.show()
+for i in range(4):
+    pred = np.argmax(mlp[i].forward(p4['X_test']), axis=1)
+    cnf = metrics.confusionMatrix(pred, p4['Y_test'], n_labels)
+    acc = metrics.accuracy(pred, p4['Y_test'])
+    f1 = metrics.f1Score(cnf)
+                         
+    print(models[i])
+    print("Classification Accuracy : ", acc * 100, "%")
+    print("               F1 Score : ", np.mean(f1))
+    print("-------------------------------------------------------------------------------------")
 
 
 # # P5 (Neural Networks, CNN)
@@ -1082,6 +786,12 @@ plt.show()
 # 
 # **DATA:** `images.zip (p4[data])`
 
+# In[ ]:
+
+
+
+
+
 # # P6 (Neural Networks, CNN)
 # 
 # - For the above problem, build a big-enough CNN architecture that would overfit the K-MNIST data. 
@@ -1090,321 +800,10 @@ plt.show()
 # 
 # **DATA:** `images.zip (p4[data])`
 
-# ## Data handling
-
 # In[ ]:
 
 
-p4["splitData"] = [trainTestSplit(p4["data"], r, imgToFeatures) for r in [0.2, 0.3, 0.5, 0.7, 0.9]]
 
-
-# ## Naive Bayes
-
-# In[ ]:
-
-
-p4["result"] = [[] for _ in range(5)]
-
-
-# ### Test split -- 20:80
-
-# In[ ]:
-
-
-p4["result"][0] = metrics.print(*p4["splitData"][0], naiveLogNormal)
-
-
-# ### Test split -- 30:70
-
-# In[ ]:
-
-
-p4["result"][0] = metrics.print(*p4["splitData"][1], naiveLogNormal)
-
-
-# ### Test split -- 50:50
-
-# In[ ]:
-
-
-p4["result"][0] = metrics.print(*p4["splitData"][2], naiveLogNormal)
-
-
-# ### Test split -- 70:30
-
-# In[ ]:
-
-
-p4["result"][0] = metrics.print(*p4["splitData"][3], naiveLogNormal)
-
-
-# ### Test split -- 90:10
-
-# In[ ]:
-
-
-p4["result"][0] = metrics.print(*p4["splitData"][4], naiveLogNormal)
-
-
-# ## GMM
-
-# In[ ]:
-
-
-def printGmm(data, number_of_guassians=2):
-    classStatsGMM = {}
-    for label in data[-1]:
-        classStatsGMM[label] = { "prior": data[-1][label]["prior"] }
-        classStatsGMM[label]["weights"], classStatsGMM[label]["mean"], classStatsGMM[label]["cov"] = em(data[-1][label]["data"], number_of_guassians, 50)
-
-    metrics.print(*data[:-1], classStatsGMM, logGMM, result=False)
-
-
-# ### Test split -- 20:80
-
-# In[ ]:
-
-
-printGmm(p4["splitData"][0])
-
-
-# ### Test split -- 30:70
-
-# In[ ]:
-
-
-printGmm(p4["splitData"][1])
-
-
-# ### Test split -- 50:50
-
-# In[ ]:
-
-
-printGmm(p4["splitData"][2])
-
-
-# ### Test split -- 70:30
-
-# In[ ]:
-
-
-printGmm(p4["splitData"][3])
-
-
-# ### Test split -- 90:10
-
-# In[ ]:
-
-
-printGmm(p4["splitData"][4])
-
-
-# ## Logistic Regression
-
-# In[ ]:
-
-
-def logisticRegressor(data):
-    X_train,y_train_orig , X_test, y_test_orig, classStats = data
-    num_classes = 10
-    num_samples = y_train_orig.shape[0]
-    y_train = np.zeros((num_samples, num_classes))
-    for i in range(num_samples):
-        y_train[i, int(y_train_orig[i]) - 1] = 1
-
-    # Define sigmoid function
-    def sigmoid(x):
-        return 1 / (1 + np.exp(-x))
-
-    # Define softmax function
-    def softmax(x):
-        exp_x = np.exp(x)
-        return exp_x / np.sum(exp_x, axis=1, keepdims=True)
-
-    # Initialize weights and biases
-    num_features = X_train.shape[1]
-    W = np.random.randn(num_features, num_classes)
-    b = np.random.randn(num_classes)
-
-    # Set hyperparameters
-    learning_rate = 0.1
-    num_iterations = 1000
-    epsilon = 1e-8
-
-    # Train model using gradient descent
-    prev_loss = float('inf')
-    for i in range(num_iterations):
-        # Forward propagation
-        z = np.dot(X_train, W) + b
-        y_pred = softmax(z)
-
-        # Compute loss
-        loss = -np.sum(y_train * np.log(y_pred + epsilon)) / num_samples
-
-        # Backward propagation
-        dz = y_pred - y_train
-        dW = np.dot(X_train.T, dz) / num_samples
-        db = np.sum(dz, axis=0) / num_samples
-
-        # Update weights and biases
-        W -= learning_rate * dW
-        b -= learning_rate * db
-
-        # Check stopping criterion
-        if prev_loss - loss < epsilon:
-            print('Stopping criterion met')
-            break
-
-        prev_loss = loss
-
-    # Evaluate model on test set
-    z = np.dot(X_test, W) + b
-    y_pred = np.argmax(softmax(z), axis=1) + 1
-    accuracy = np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
-    print('Test accuracy:', accuracy)
-
-    z_train = np.dot(X_train, W) + b
-    y_train_pred = np.argmax(softmax(z_train), axis=1) + 1
-    train_loss = -np.sum(y_train * np.log(softmax(z_train) + epsilon)) / num_samples
-    train_error_rate = 1 - np.sum(y_train_pred == y_train_orig) / y_train_orig.shape[0]
-    print('Training empirical risk:', train_loss)
-    print('Training error rate:', train_error_rate)
-
-    # Compute empirical risk on test data
-    num_samples_test = y_test_orig.shape[0]
-    y_test = np.zeros((num_samples_test, num_classes))
-    for i in range(num_samples_test):
-        y_test[i, int(y_test_orig[i]) - 1] = 1
-
-    z_test = np.dot(X_test, W) + b
-    test_loss = -np.sum(y_test * np.log(softmax(z_test) + epsilon)) / num_samples_test
-    test_error_rate = 1 - np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
-    print('Test empirical risk:', test_loss)
-    print('Test error rate:', test_error_rate)
-
-    num_classes = len(np.unique(y_test_orig))
-    confusion_matrix = np.zeros((num_classes, num_classes))
-    for i in range(len(y_test_orig)):
-        true_class = int(y_test_orig[i] - 1)
-        predicted_class = int(y_pred[i] - 1)
-        confusion_matrix[true_class, predicted_class] += 1
-    # print('Confusion matrix:')
-    # print(confusion_matrix)
-
-
-    num_classes = len(np.unique(y_test_orig))
-    f1_scores = np.zeros(num_classes)
-    for i in range(num_classes):
-        true_positives = confusion_matrix[i, i]
-        false_positives = np.sum(confusion_matrix[:, i]) - true_positives
-        false_negatives = np.sum(confusion_matrix[i, :]) - true_positives
-        precision = true_positives / (true_positives + false_positives + 1e-8)
-        recall = true_positives / (true_positives + false_negatives + 1e-8)
-        f1_scores[i] = 2 * precision * recall / (precision + recall + 1e-8)
-    print('Class-wise F1 score:')
-    print(f1_scores)
-
-    # Choose two classes
-    class_1 = 1
-    class_2 = 2
-    # Get predicted probabilities for the two classes
-    y_class_1 = y_pred == class_1
-    y_class_2 = y_pred == class_2
-    y_prob_1 = softmax(z)[:, class_1 - 1]
-    y_prob_2 = softmax(z)[:, class_2 - 1]
-
-    # Compute true positive rate and false positive rate for both classes
-    num_thresholds = 100
-    tpr_class_1 = np.zeros(num_thresholds)
-    fpr_class_1 = np.zeros(num_thresholds)
-    tpr_class_2 = np.zeros(num_thresholds)
-    fpr_class_2 = np.zeros(num_thresholds)
-
-    for i in range(num_thresholds):
-        threshold = i / (num_thresholds - 1)
-        tp_class_1 = np.sum((y_prob_1 >= threshold) & (y_class_1 == True))
-        fn_class_1 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
-        tn_class_1 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-        fp_class_1 = np.sum((y_prob_2 >= threshold) & (y_class_2 == False))
-        tpr_class_1[i] = tp_class_1 / (tp_class_1 + fn_class_1 + 1e-8)
-        fpr_class_1[i] = fp_class_1 / (fp_class_1 + tn_class_1 + 1e-8)
-
-        tp_class_2 = np.sum((y_prob_2 >= threshold) & (y_class_2 == True))
-        fn_class_2 = np.sum((y_prob_2 < threshold) & (y_class_2 == True))
-        tn_class_2 = np.sum((y_prob_1 < threshold) & (y_class_1 == True))
-        fp_class_2 = np.sum((y_prob_1 >= threshold) & (y_class_1 == False))
-        tpr_class_2[i] = tp_class_2 / (tp_class_2 + fn_class_2 + 1e-8)
-        fpr_class_2[i] = fp_class_2 / (fp_class_2 + tn_class_2 + 1e-8)
-
-    # Plot RoC curves and confusion matrix
-    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
-    ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
-    ax[0, 0].set_xlabel("Predicted")
-    ax[0, 0].set_ylabel("Actual")
-    ax[0, 0].set_title("Confusion Matrix")
-    for (x, y), value in np.ndenumerate(confusion_matrix):
-        ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
-
-    ax[0, 1].plot(fpr_class_1, tpr_class_1, marker='x')
-    ax[0, 1].set_xlabel("False positive rate")
-    ax[0, 1].set_ylabel("True positive rate")                     
-    ax[0, 1].set_title("ROC curve for class {}".format(class_1))
-
-    ax[1, 0].plot(fpr_class_2, tpr_class_2, marker='x')
-    ax[1, 0].set_xlabel("False positive rate")
-    ax[1, 0].set_ylabel("True Positive rate")
-    ax[1, 0].set_title("ROC curve for class {}".format(class_2))
-
-    ax[1, 1].plot(fpr_class_1, tpr_class_1, marker='x', label="Class {}".format(class_1))
-    ax[1, 1].plot(fpr_class_2, tpr_class_2, marker='o', label="Class {}".format(class_2))
-    ax[1, 1].set_xlabel("False positive rate")
-    ax[1, 1].set_ylabel("True positive rate")
-    ax[1, 1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
-    ax[1, 1].legend()
-
-    fig.tight_layout()
-    plt.show()
-
-
-# ### Test split -- 20:80
-
-# In[ ]:
-
-
-logisticRegressor(p4["splitData"][0])
-
-
-# ### Test split -- 30:70
-
-# In[ ]:
-
-
-logisticRegressor(p4["splitData"][1])
-
-
-# ### Test split -- 50:50
-
-# In[ ]:
-
-
-logisticRegressor(p4["splitData"][2])
-
-
-# ### Test split -- 70:30
-
-# In[ ]:
-
-
-logisticRegressor(p4["splitData"][3])
-
-
-# ### Test split -- 90:10
-
-# In[ ]:
-
-
-logisticRegressor(p4["splitData"][4])
 
 
 # # P7 (Neural Networks, MLP)
@@ -1413,336 +812,71 @@ logisticRegressor(p4["splitData"][4])
 # 
 # **DATA:** `p5[data]`
 
-# ## Data handling
+# In[286]:
 
-# In[ ]:
 
+mlp = [[] for _ in range(4)]
+n_labels = len(np.unique(p4['Y']))
 
-def stats(label, data, stats=False):
-    X = data
-    Y = label * np.ones(data.shape[0])
-    if stats:
-        return X, Y, { "mean": np.mean(X, axis=0), "cov": np.cov(X.T), "prior": data.shape[0], "data": X }
-    return X, Y
+# Shuffle the training data randomly
+indices = np.arange(p5['X'].shape[0])
+np.random.shuffle(indices)
 
-classWiseData = [[] for _ in range(10)]
-for row in p5["data"]:
-    label = int(row[0])
-    classWiseData[label].append(row[1:])
-    
-p5["splitData"] = [trainTestSplit(np.array(classWiseData), r, stats) for r in [0.2, 0.3, 0.5, 0.7, 0.9]]
+s = int(0.7 * p5['X'].shape[0])
+xtrain, xval = p5['X'][indices[:s]], p5['X'][indices[s:]]
+ytrain, yval = p5['Y'][indices[:s]], p5['Y'][indices[s:]]
 
+layers = [xtrain.shape[1], 32, n_labels]
+mlp[0] = MLP(layers, 'sigmoid', 'softmax','ce', learning_rate = 0.1)
 
-# ## Naive Bayes
+train_losses, val_losses, train_accs, val_accs = mlp[0].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-# In[ ]:
 
+# In[287]:
 
-p5["result"] = [[] for _ in range(5)]
 
+layers = [xtrain.shape[1], 64, 32, n_labels]
+mlp[1] = MLP(layers, 'relu', 'softmax','mse', learning_rate = 0.01)
 
-# ### Test split -- 20:80
+train_losses, val_losses, train_accs, val_accs = mlp[1].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-# In[ ]:
 
+# In[288]:
 
-p5["result"][0] = metrics.print(*p5["splitData"][0], naiveLogNormal)
 
+layers = [xtrain.shape[1], 128, 64, 32, n_labels]
+mlp[2] = MLP(layers, 'sigmoid', 'softmax','mse', learning_rate = 0.1)
 
-# ### Test split -- 30:70
+train_losses, val_losses, train_accs, val_accs = mlp[2].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-# In[ ]:
 
+# In[289]:
 
-p5["result"][0] = metrics.print(*p5["splitData"][1], naiveLogNormal)
 
+layers = [xtrain.shape[1], 256, 128, 64, 32, n_labels]
+mlp[3] = MLP(layers, 'relu', 'softmax','ce', learning_rate = 0.1)
 
-# ### Test split -- 50:50
+train_losses, val_losses, train_accs, val_accs = mlp[3].train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
 
-# In[ ]:
 
+# #### Final accuracy and F1 score
 
-p5["result"][0] = metrics.print(*p5["splitData"][2], naiveLogNormal)
+# In[291]:
 
 
-# ### Test split -- 70:30
+models = ["1 hidden layer, activation function: 'sigmoid', loss function: 'cross-entropy'",
+         "2 hidden layers, activation function: 'relu', loss function: 'mean squared error'",
+         "3 hidden layers, activation function: 'sigmoid', loss function: 'mean squared error'",
+         "4 hidden layers, activation function: 'relu', loss function: 'cross-entropy'"]
 
-# In[ ]:
-
-
-p5["result"][0] = metrics.print(*p5["splitData"][3], naiveLogNormal)
-
-
-# ### Test split -- 90:10
-
-# In[ ]:
-
-
-p5["result"][0] = metrics.print(*p5["splitData"][4], naiveLogNormal)
-
-
-# ## GMM
-
-# ### Test split -- 20:80
-
-# In[ ]:
-
-
-printGmm(p5["splitData"][0])
-
-
-# ### Test split -- 30:70
-
-# In[ ]:
-
-
-printGmm(p5["splitData"][1])
-
-
-# ### Test split -- 50:50
-
-# In[ ]:
-
-
-printGmm(p5["splitData"][2])
-
-
-# ### Test split -- 70:30
-
-# In[ ]:
-
-
-printGmm(p5["splitData"][3])
-
-
-# ### Test split -- 90:10
-
-# In[ ]:
-
-
-printGmm(p5["splitData"][4])
-
-
-# ## Logistic Regression
-
-# In[ ]:
-
-
-def logisticRegressor(data):
-    X_train,y_train_orig , X_test, y_test_orig, classStats = data
-    num_classes = 10
-    num_samples = y_train_orig.shape[0]
-    y_train = np.zeros((num_samples, num_classes))
-    for i in range(num_samples):
-        y_train[i, int(y_train_orig[i]) - 1] = 1
-
-    # Define sigmoid function
-    def sigmoid(x):
-        return 1 / (1 + np.exp(-x))
-
-    # Define softmax function
-    def softmax(x):
-        # subtract the maximum value from x to avoid overflow
-        x -= np.max(x, axis=1, keepdims=True)
-        exp_x = np.exp(x)
-        # divide by the sum of the exponential values along axis 1
-        return exp_x / np.sum(exp_x, axis=1, keepdims=True, where=np.isfinite(exp_x))
-
-    # Initialize weights and biases
-    num_features = X_train.shape[1]
-    W = np.random.randn(num_features, num_classes)
-    b = np.random.randn(num_classes)
-
-    # Set hyperparameters
-    learning_rate = 0.1
-    num_iterations = 1000
-    epsilon = 1e-8
-
-    # Train model using gradient descent
-    prev_loss = float('inf')
-    for i in range(num_iterations):
-        # Forward propagation
-        z = np.dot(X_train, W) + b
-        y_pred = softmax(z)
-
-        # Compute loss
-        loss = -np.sum(y_train * np.log(y_pred + epsilon)) / num_samples
-
-        # Backward propagation
-        dz = y_pred - y_train
-        dW = np.dot(X_train.T, dz) / num_samples
-        db = np.sum(dz, axis=0) / num_samples
-
-        # Update weights and biases
-        W -= learning_rate * dW
-        b -= learning_rate * db
-
-        # Check stopping criterion
-        if prev_loss - loss < epsilon:
-            print('Stopping criterion met')
-            break
-
-        prev_loss = loss
-
-    # Evaluate model on test set
-    z = np.dot(X_test, W) + b
-    y_pred = np.argmax(softmax(z), axis=1) + 1
-    accuracy = np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
-    print('Test accuracy:', accuracy)
-
-    z_train = np.dot(X_train, W) + b
-    y_train_pred = np.argmax(softmax(z_train), axis=1) + 1
-    train_loss = -np.sum(y_train * np.log(softmax(z_train) + epsilon)) / num_samples
-    train_error_rate = 1 - np.sum(y_train_pred == y_train_orig) / y_train_orig.shape[0]
-    print('Training empirical risk:', train_loss)
-    print('Training error rate:', train_error_rate)
-
-    # Compute empirical risk on test data
-    num_samples_test = y_test_orig.shape[0]
-    y_test = np.zeros((num_samples_test, num_classes))
-    for i in range(num_samples_test):
-        y_test[i, int(y_test_orig[i]) - 1] = 1
-
-    z_test = np.dot(X_test, W) + b
-    test_loss = -np.sum(y_test * np.log(softmax(z_test) + epsilon)) / num_samples_test
-    test_error_rate = 1 - np.sum(y_pred == y_test_orig) / y_test_orig.shape[0]
-    print('Test empirical risk:', test_loss)
-    print('Test error rate:', test_error_rate)
-
-    num_classes = len(np.unique(y_test_orig))
-    confusion_matrix = np.zeros((num_classes, num_classes))
-    for i in range(len(y_test_orig)):
-        true_class = int(y_test_orig[i] - 1)
-        predicted_class = int(y_pred[i] - 1)
-        confusion_matrix[true_class, predicted_class] += 1
-    print('Confusion matrix:')
-    print(confusion_matrix)
-
-    num_classes = len(np.unique(y_test_orig))
-    f1_scores = np.zeros(num_classes)
-    for i in range(num_classes):
-        true_positives = confusion_matrix[i, i]
-        false_positives = np.sum(confusion_matrix[:, i]) - true_positives
-        false_negatives = np.sum(confusion_matrix[i, :]) - true_positives
-        precision = true_positives / (true_positives + false_positives + 1e-8)
-        recall = true_positives / (true_positives + false_negatives + 1e-8)
-        f1_scores[i] = 2 * precision * recall / (precision + recall + 1e-8)
-    print('Class-wise F1 score:')
-    print(f1_scores)
-
-
-
-
-
- # Choose two classes
-    class_1 = 1
-    class_2 = 2
-
-    # Get predicted probabilities for the two classes
-    y_class_1 = y_test_orig == class_1
-    y_class_2 = y_test_orig == class_2
-    y_prob_1 = softmax(z_test)[:, class_1 - 1]
-    y_prob_2 = softmax(z_test)[:, class_2 - 1]
-
-    # Compute true positive rate and false positive rate for both classes
-    num_thresholds = 100
-    tpr_class_1 = np.zeros(num_thresholds)
-    fpr_class_1 = np.zeros(num_thresholds)
-    tpr_class_2 = np.zeros(num_thresholds)
-    fpr_class_2 = np.zeros(num_thresholds)
-
-    for i in range(num_thresholds):
-        threshold = i / (num_thresholds - 1)
-        tp_class_1 = np.sum(y_class_1 & (y_prob_1 > threshold))
-        fp_class_1 = np.sum(~y_class_1 & (y_prob_1 > threshold))
-        tn_class_1 = np.sum(~y_class_1 & (y_prob_1 <= threshold))
-        fn_class_1 = np.sum(y_class_1 & (y_prob_1 <= threshold))
-        tpr_class_1[i] = tp_class_1 / (tp_class_1 + fn_class_1)
-        fpr_class_1[i] = fp_class_1 / (fp_class_1 + tn_class_1)
-
-        tp_class_2 = np.sum(y_class_2 & (y_prob_2 > threshold))
-        fp_class_2 = np.sum(~y_class_2 & (y_prob_2 > threshold))
-        tn_class_2 = np.sum(~y_class_2 & (y_prob_2 <= threshold))
-        fn_class_2 = np.sum(y_class_2 & (y_prob_2 <= threshold))
-        tpr_class_2[i] = tp_class_2 / (tp_class_2 + fn_class_2)
-        fpr_class_2[i] = fp_class_2 / (fp_class_2 + tn_class_2)
-        
-    
-    # Plot RoC curves and confusion matrix
-    fig, ax = plt.subplots(2, 2, figsize=(12, 12))
-    ax[0, 0].matshow(confusion_matrix, cmap='GnBu')
-    ax[0, 0].set_xlabel("Predicted")
-    ax[0, 0].set_ylabel("Actual")
-    ax[0, 0].set_title("Confusion Matrix")
-    for (x, y), value in np.ndenumerate(confusion_matrix):
-        ax[0, 0].text(x, y, f"{value: .0f}", va="center", ha="center")
-
-
-    ax[0, 1].plot(fpr_class_1, tpr_class_1, marker='x')
-    ax[0, 1].set_xlabel("False positive rate")
-    ax[0, 1].set_ylabel("True positive rate")                     
-    ax[0, 1].set_title("ROC curve for class {}".format(class_1))
-
-    ax[1, 0].plot(fpr_class_2, tpr_class_2, marker='x')
-    ax[1, 0].set_xlabel("False positive rate")
-    ax[1, 0].set_ylabel("True Positive rate")
-    ax[1, 0].set_title("ROC curve for class {}".format(class_2))
-
-    ax[1, 1].plot(fpr_class_1, tpr_class_1, marker='x', label="Class {}".format(class_1))
-    ax[1, 1].plot(fpr_class_2, tpr_class_2, marker='o', label="Class {}".format(class_2))
-    ax[1, 1].set_xlabel("False positive rate")
-    ax[1, 1].set_ylabel("True positive rate")
-    ax[1, 1].set_title("ROC curve for classes {} and {}".format(class_1, class_2))
-    ax[1, 1].legend()
-
-    fig.tight_layout()
-    plt.show()
-
-
-
-
-# ### Test split -- 20:80
-
-# In[ ]:
-
-
-logisticRegressor(p5["splitData"][0])
-
-
-# ### Test split -- 30:70
-
-# In[ ]:
-
-
-logisticRegressor(p5["splitData"][1])
-
-
-# ### Test split -- 50:50
-
-# In[ ]:
-
-
-logisticRegressor(p5["splitData"][2])
-
-
-# ### Test split -- 70:30
-
-# In[ ]:
-
-
-logisticRegressor(p5["splitData"][3])
-
-
-# ### Test split -- 90:10
-
-# In[ ]:
-
-
-logisticRegressor(p5["splitData"][4])
-
-
-# In[ ]:
-
-
-
+for i in range(4):
+    pred = np.argmax(mlp[i].forward(p5['X_test']), axis=1)
+    cnf = metrics.confusionMatrix(pred, p5['Y_test'], n_labels)
+    acc = metrics.accuracy(pred, p5['Y_test'])
+    f1 = metrics.f1Score(cnf)
+                         
+    print(models[i])
+    print("Classification Accuracy : ", acc * 100, "%")
+    print("               F1 Score : ", np.mean(f1))
+    print("-------------------------------------------------------------------------------------")
 
