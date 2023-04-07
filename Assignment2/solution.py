@@ -3,7 +3,7 @@
 
 # # Initialization
 
-# In[99]:
+# In[4]:
 
 
 import numpy as np
@@ -25,7 +25,7 @@ from libsvm.svmutil import *
 
 # ### Uncompress compressed files
 
-# In[128]:
+# In[5]:
 
 
 get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../data')
@@ -33,7 +33,7 @@ get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../
 
 # ### Custom functions
 
-# In[177]:
+# In[6]:
 
 
 def genFromImage(imageDir, size=(8, 8)):
@@ -87,7 +87,7 @@ def stats(label, data, stats=False):
 
 # ### Data extraction
 
-# In[130]:
+# In[7]:
 
 
 dataFolder = "../data"
@@ -116,7 +116,7 @@ print("(Classification)  p4[data]:", p4["data"].shape)
 print("(Classification)  p5[data]:     ", p5["data"].shape)
 
 
-# In[131]:
+# In[8]:
 
 
 classStats = {}
@@ -145,7 +145,7 @@ p3["X_test"], p3["Y_test"] = splitData(p3["test"])
 p3["X"].shape, p3["Y"].shape, p3["X_test"].shape, p3["Y_test"].shape
 
 
-# In[132]:
+# In[9]:
 
 
 p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(p4["data"], 0.7, imgToFeatures)
@@ -153,7 +153,7 @@ p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(
 p4["X"].shape, p4["Y"].shape, p4["X_test"].shape, p4["Y_test"].shape
 
 
-# In[178]:
+# In[10]:
 
 
 classWiseData = [[] for _ in range(10)]
@@ -165,7 +165,7 @@ p5["X"], p5["Y"], p5["X_test"], p5["Y_test"], p5["classStats"] = trainTestSplit(
 p5["X"].shape, p5["Y"].shape, p5["X_test"].shape, p5["Y_test"].shape
 
 
-# In[134]:
+# In[11]:
 
 
 fig, ax = plt.subplots(2, 5, figsize=(12, 4))
@@ -180,7 +180,7 @@ fig.tight_layout()
 
 # # Custom common functions
 
-# In[197]:
+# In[12]:
 
 
 class metrics:
@@ -253,46 +253,141 @@ class metrics:
 # 
 # **DATA:** `p3train/test.csv`, `images.zip (p4[data])`
 
-# In[511]:
+# In[15]:
 
 
-W = svm_train(p3['Y'], p3['X'])
-p_label, p_acc, p_val = svm_predict(p3['Y_test'], p3['X_test'], W)
+# slack: -c 
+# grid search on gamma: -g
+# kernel: -t 0(linear), 1(polynomial), 2(radial basis)
+def svmClassify(X, Y, X_test, Y_test, C, gamma, kernel):
+    W = svm_train(Y, X, f"-c {C} -g {gamma} -t {kernel}")
+    p_label, p_acc, p_val = svm_predict(Y_test, X_test, W)
+    return p_acc[0]
 
-p_acc
+def svmGridSearch(X, Y, X_test, Y_test, C, gamma, kernel):
+    best_acc = 0
+    best_C = 0
+    best_gamma = 0
+    for c in C:
+        for g in gamma:
+            acc = svmClassify(X, Y, X_test, Y_test, c, g, kernel)
+            if acc > best_acc:
+                best_acc = acc
+                best_C = c
+                best_gamma = g
+    return best_acc, best_C, best_gamma
 
 
-# In[57]:
+# In[16]:
 
 
-X, Y = p3["train"][:, :-1], p3["train"][:, -1]
-X_test, Y_test = p3["test"][:, :-1], p3["test"][:, -1]
-
-# train one-vs-rest approach
-svm = {}
-for k in range(len(labels)):
-    svm[k] = svm_train(np.double(Y==k+1), X, '-c 1 -g 0.2 -b 1')
+# Hyperparameters
+C = [0, 100]   # 0 -> without slack, 100 -> with slack
+G = [0.1, 0.5, 1]
+kernels = [0, 1, 2]
 
 
-# In[83]:
+# ## P3 Data
+
+# ### Linear Kernel
+
+# In[ ]:
 
 
-prob = np.zeros((len(Y_test), len(labels)));
+acc, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[0])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
 
-for k in range(len(labels)):
-    _, _, p = svm_predict(np.double(Y_test==k), X_test, svm[k], '-b 1')
-    prob[:,k] = np.array(p)[:, 1]
-    
-pred = np.argmax(prob, axis=1) + 1;
-acc = np.sum(np.abs(pred - Y_test) < 0.5) / len(Y_test)
-print("Overall Accuracy: ", acc)
+
+# ### Polynomial Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[1])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
+
+
+# ### Radial basis Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p3['X'], p3['Y'], p3['X_test'], p3['Y_test'], C, G, kernel[2])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
+
+
+# ## P4 Data
+
+# ### Linear Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[0])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
+
+
+# ### Polynomial Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[1])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
+
+
+# ### Radial basis Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p4['X'], p4['Y'], p4['X_test'], p4['Y_test'], C, G, kernel[2])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
+
+
+# ## P5 Data
+
+# ### Linear Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[0])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
+
+
+# ### Polynomial Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[1])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
+
+
+# ### Radial basis Kernel
+
+# In[ ]:
+
+
+acc, c, g = svmGridSearch(p5['X'], p5['Y'], p5['X_test'], p5['Y_test'], C, G, kernel[2])
+print("       Accuracy : ", acc)
+print("Tuned parameters: C = ", c, ", gamma = ", g) 
 
 
 # # P2 (FLDA)
 # 
 # Implement FLDA for the classification problems in A1 and report the metrics as in A1
 # 
-# **DATA**: `p3train/test.csv`, `images.zip (p4[data])`
+# **DATA**: `p3train/test.csv`, `images.zip (p4[data])`, `p5[data]`
 
 # In[137]:
 
@@ -1822,883 +1917,6 @@ plt.legend(['Training loss', 'Validation loss'])
 plt.xlabel('number of epochs')
 plt.ylabel('Risk')
 plt.title('Bias-variance curve')
-
-
-# In[ ]:
-
-
-def preprocess_data(x, y, limit):
-    zero_index = np.where(y == 0)[0][:limit]
-    one_index = np.where(y == 1)[0][:limit]
-    two_index = np.where(y == 2)[0][:limit]
-    three_index = np.where(y == 3)[0][:limit]
-    four_index = np.where(y == 4)[0][:limit]
-    five_index = np.where(y == 5)[0][:limit]
-    six_index = np.where(y == 6)[0][:limit]
-    seven_index = np.where(y == 7)[0][:limit]
-    eight_index = np.where(y == 8)[0][:limit]
-    nine_index = np.where(y == 9)[0][:limit]
-
-    # Concatenate the indices and shuffle.
-    all_indices = np.hstack((zero_index, one_index, two_index, three_index, four_index, five_index, six_index, seven_index, eight_index, nine_index))
-    all_indices = np.random.permutation(all_indices)
-
-    # Subset the data and reshape.
-    x, y = x[all_indices], y[all_indices]
-    x = x.reshape(len(x), 1, 28, 28)
-    x = x.astype("float32") / 255
-
-    # One-hot encode the labels
-    n_classes = 10
-    y_one_hot = np.zeros((y.shape[0], n_classes))
-    for i in range(y.shape[0]):
-        y_one_hot[i, y[i]] = 1
-
-    y_one_hot = y_one_hot.reshape(len(y_one_hot), 10, 1)
-    return x, y_one_hot
-
-
-# In[ ]:
-
-
-# load MNIST from server, limit to 100 images per class since we're not training on GPU
-x_train, y_train = preprocess_data(x_train, y_train, 6000)
-x_test, y_test = preprocess_data(x_test, y_test, 1000)
-
-
-# In[ ]:
-
-
-# Shuffle the training data randomly
-indices = np.arange(x_train.shape[0])
-np.random.shuffle(indices)
-
-# Split the training data into 70% for training and 30% for validation
-split_idx = int(0.001 * x_train.shape[0])
-train_indices, val_indices = indices[:split_idx], indices[split_idx:]
-
-# Split the training data into training and validation sets
-xtrain, xval = x_train[train_indices], x_train[val_indices]
-ytrain, yval = y_train[train_indices], y_train[val_indices]
-
-
-# In[ ]:
-
-
-def predict(network, input):
-    output = input
-    for layer in network:
-        output = layer.forward(output)
-    return output
-
-
-# In[ ]:
-
-
-def train(network, loss, loss_prime, x_train, y_train, x_val , y_val , epochs = 1000, learning_rate = 0.01, early_stopping = False , patience = 5 ,  verbose = True):
-    cost_train = []
-    cost_val = []
-    train_acc = []
-    val_acc = []
-    patience = 0
-    early_stopping = False
-    patience_counter = 0
-    best_val_loss = np.inf
-    epoch_counter = 0
-    best_epoch = 0
-    continue_training = True
-    for e in range(epochs):
-        error_train = 0
-        error_val = 0
-        pred_train = []
-        pred_val = []
-        
-        if(continue_training == False):
-                print("Stopped Training due to Early Stoping after {} epochs".format(epoch_counter))
-                break
-
-        for x, y in zip(x_train, y_train):
-            output_t = predict(network, x)
-            pred_train.append(output_t)
-
-            error_train += loss(y , output_t)
-
-            grad = loss_prime(y, output_t)
-            for layer in reversed(network):
-                grad = layer.backward(grad, learning_rate)
-
-        for x_v , y_v in zip(x_val, y_val):
-            output_v = predict(network , x_v)
-            pred_val.append(output_v)
-            error_val += loss(y_v , output_v)
-
-        error_train /= len(x_train)
-        error_val /= len(x_val)
-        cost_train.append(error_train)
-        cost_val.append(error_val)
-        acc_train = accuracy_score(y_train ,np.array(pred_train))
-        acc_val = accuracy_score(y_val ,np.array(pred_val))
-        train_acc.append(acc_train)
-        val_acc.append(acc_val)
-
-        if(epoch_counter > 5):
-            if(early_stopping == True):
-                if(patience_counter <= patience):
-                    if (best_val_loss > cost_val):
-                      patience_counter = 0
-                      best_epoch = epoch_counter + 1
-                      .best_val_loss = cost_val
-                      for layer in layers:
-                          if hasattr(layer, 'weights'):
-                              if not hasattr(layer, 'best_weights'):
-                                  layer.best_weights = np.zeros_like(layer.weights)
-                                  layer.best_biases = np.zeros_like(layer.biases)
-                              
-                              layer.best_weights = layer.weights
-                              layer.best_biases = layer.biases              
-                    else:
-                        patience_counter += 1            
-                else:
-                    continue_training = False
-                    for layer in layers:
-                        if hasattr(layer, 'weights'):
-                            layer.weights = layer.best_weights
-                            layer.biases = layer.best_biases
-
-        if verbose:
-            print(f"{e + 1}/{epochs}, error_train = {error_train} , train_accuracy = {acc_train}, error_val = {error_val} , val_accuracy = {acc_val} ")
-    return cost_train , cost_val , train_acc , val_acc
-
-
-# **Building a big-enough CNN architecture that would overfit the K-MNIST data. To ensure overfitting , we are considering only small subset of training dataset and training the model for more number of epochs.**
-
-# In[ ]:
-
-
-# Define the neural network architecture as a list of layers
-network = [
-    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
-    Sigmoid(),
-    Convolutional((5, 22, 22), 3, 5),
-    Sigmoid(),
-    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
-    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(100, 10),  # Fully connected layer with 10 output units
-    Softmax()   # Softmax activation function
-]
-
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train_unreg , cost_val_unreg , train_acc_unreg , val_acc_unreg = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain,  # Training input data
-    ytrain,  # Training target data
-    xval[:1000],  # Validation input data
-    yval[:1000],  # Validation target data
-    epochs= 50 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# **Imposing L2 regularizer and plotting the bias-variance curves.**
-
-# In[ ]:
-
-
-# Define the neural network architecture as a list of layers
-network = [
-    Convolutional((1, 28, 28), 3, 8 , 0.0005),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((8, 26, 26), 3, 5 , 0.0005),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((5, 24, 24), 3, 5 , 0.0005),  # Optional additional convolutional layer
-    Sigmoid(),
-    Convolutional((5, 22, 22), 3, 5 , 0.0005),
-    Sigmoid(),
-    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
-    Dense(5 * 20 * 20, 1000 , 0.0005),  # Fully connected layer with 100 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(1000 , 100 , 0.0005),  # Fully connected layer with 1000 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(100, 10 , 0.0005),  # Fully connected layer with 10 output units
-    Softmax()   # Softmax activation function
-]
-
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train_reg , cost_val_reg , train_acc_reg , val_acc_reg = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain,  # Training input data
-    ytrain,  # Training target data
-    xval[:2000],  # Validation input data
-    yval[:2000],  # Validation target data
-    epochs= 50 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# In[ ]:
-
-
-epochs = []
-for epoch in range(1 , 51):
-  epochs.append(epoch)
-
-
-costs_val_unreg = np.squeeze(cost_val_unreg)
-costs_train_unreg = np.squeeze(cost_train_unreg)
-
-costs_val_reg = np.squeeze(cost_val_reg)
-costs_train_reg = np.squeeze(cost_train_reg)
-
-
-# create a figure and axis
-fig, ax = plt.subplots()
-
-# plot err1 against x_list
-ax.plot(epochs ,  costs_train_unreg, label='Error during Training')
-
-# plot err2 against x_list
-ax.plot(epochs , costs_val_unreg , label = 'Error during Validation without Regularization')
-
-# plot errr against x_list
-ax.plot(epochs , costs_val_reg , label = 'Error during Validation with Regularization')
-
-# add labels and title
-ax.set_xlabel('Number of Epochs')
-ax.set_ylabel('Error')
-ax.set_title('Error  against Number of epochs')
-
-# add legend
-ax.legend()
-
-# show the plot
-plt.show()
-
-
-# **Perturbing each of the input images with additive Gaussian noise and reporting its regularization impact.**
-
-# In[ ]:
-
-
-xtrain_noise = xtrain + np.random.randn(*(xtrain.shape))
-
-
-# In[ ]:
-
-
-# Define the neural network architecture as a list of layers
-network = [
-    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
-    Sigmoid(),
-    Convolutional((5, 22, 22), 3, 5),
-    Sigmoid(),
-    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
-    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(100, 10),  # Fully connected layer with 10 output units
-    Softmax()   # Softmax activation function
-]
-
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train_reg_noise , cost_val_reg_noise , train_acc_reg_noise , val_acc_reg_noise = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain_noise,  # Training noisy input data
-    ytrain,  # Training target data
-    xval[:1000],  # Validation input data
-    yval[:1000],  # Validation target data
-    epochs= 25 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# In[ ]:
-
-
-epochs = []
-for epoch in range(1 , 26):
-  epochs.append(epoch)
-
-
-costs_val_reg_noise = np.squeeze(cost_val_reg_noise)
-costs_train_reg_noise = np.squeeze(cost_train_reg_noise)
-
-
-# create a figure and axis
-fig, ax = plt.subplots()
-
-# plot err1 against x_list
-ax.plot(epochs ,  costs_train_reg_noise, label='Error during Training')
-
-# plot err2 against x_list
-ax.plot(epochs , costs_val_reg_noise , label = 'Error during Validation with Noise')
-
-# add labels and title
-ax.set_xlabel('Number of Epochs')
-ax.set_ylabel('Error')
-ax.set_title('Error  against Number of epochs')
-
-# add legend
-ax.legend()
-
-# show the plot
-plt.show()
-
-
-# **Imposing early-stopping as regularizers and plotting the bias-variance curves**
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train , cost_val , train_acc , val_acc = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain,  # Training noisy input data
-    ytrain,  # Training target data
-    xval[:1000],  # Validation input data
-    yval[:1000],  # Validation target data
-    epochs= 18 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# In[ ]:
-
-
-epochs = []
-for epoch in range(1 , 51):
-  epochs.append(epoch)
-
-
-# create a figure and axis
-fig, ax = plt.subplots()
-
-# plot err1 against x_list
-ax.plot(epochs ,  costs_train_unreg, label='Train loss without Regularization')
-
-# plot err2 against x_list
-ax.plot(epochs , costs_val_unreg_ , label = 'Validation loss without Regularization')
-
-ax.plot(epochs , costs_val_reg_noise , label = 'Input Data Pertubed with Noise')
-
-ax.plot(epochs , costs_val , label = 'With Early Stopping')
-
-# add labels and title
-ax.set_xlabel('No of epochs'')
-ax.set_ylabel('Cross Entropy Error')
-
-# add legend
-ax.legend()
-
-# show the plot
-plt.show()
-
-
-# In[84]:
-
-
-# Load train and test data
-train_data = np.genfromtxt('../data/p4_mnist_train.csv', delimiter=',')
-test_data = np.genfromtxt('../data/p4_mnist_test.csv', delimiter=',')
-
-# Extract X and y data from train and test data
-x_train, y_train = get_X_y_data(train_data)
-x_test, y_test = get_X_y_data(test_data)
-
-# Reshape x_train and x_test data to include a third dimension, corresponding to the single color channel
-x_train = x_train.reshape((x_train.shape[0], x_train.shape[1], 1))
-x_test = x_test.reshape((x_test.shape[0], x_test.shape[1], 1))
-
-
-# In[ ]:
-
-
-def preprocess_data(x, y, limit):
-    """
-    Preprocess input data and target labels.
-
-    Args:
-        x (numpy.ndarray): Input data.
-        y (numpy.ndarray): Target labels.
-        limit (int): Maximum number of samples per class.
-
-    Returns:
-        numpy.ndarray: Preprocessed input data.
-        numpy.ndarray: One-hot encoded target labels.
-
-    """
-    # Get indices of samples for each class and limit to `limit` samples per class.
-    zero_index = np.where(y == 0)[0][:limit]
-    one_index = np.where(y == 1)[0][:limit]
-    two_index = np.where(y == 2)[0][:limit]
-    three_index = np.where(y == 3)[0][:limit]
-    four_index = np.where(y == 4)[0][:limit]
-    five_index = np.where(y == 5)[0][:limit]
-    six_index = np.where(y == 6)[0][:limit]
-    seven_index = np.where(y == 7)[0][:limit]
-    eight_index = np.where(y == 8)[0][:limit]
-    nine_index = np.where(y == 9)[0][:limit]
-
-    # Concatenate the indices and shuffle.
-    all_indices = np.hstack((zero_index, one_index, two_index, three_index, four_index, five_index, six_index, seven_index, eight_index, nine_index))
-    all_indices = np.random.permutation(all_indices)
-
-    # Subset the data and reshape.
-    x, y = x[all_indices], y[all_indices]
-    x = x.reshape(len(x), 1, 28, 28)
-    x = x.astype("float32") / 255
-
-    # One-hot encode the labels
-    n_classes = 10
-    y_one_hot = np.zeros((y.shape[0], n_classes))
-    for i in range(y.shape[0]):
-        y_one_hot[i, y[i]] = 1
-
-    y_one_hot = y_one_hot.reshape(len(y_one_hot), 10, 1)
-    return x, y_one_hot
-
-
-# In[ ]:
-
-
-# load MNIST from server, limit to 100 images per class since we're not training on GPU
-x_train, y_train = preprocess_data(x_train, y_train, 6000)
-x_test, y_test = preprocess_data(x_test, y_test, 1000)
-
-
-# In[ ]:
-
-
-# Shuffle the training data randomly
-indices = np.arange(x_train.shape[0])
-np.random.shuffle(indices)
-
-# Split the training data into 70% for training and 30% for validation
-split_idx = int(0.001 * x_train.shape[0])
-train_indices, val_indices = indices[:split_idx], indices[split_idx:]
-
-# Split the training data into training and validation sets
-xtrain, xval = x_train[train_indices], x_train[val_indices]
-ytrain, yval = y_train[train_indices], y_train[val_indices]
-
-
-# In[ ]:
-
-
-def predict(network, input):
-    """
-    This function takes in a neural network and an input, applies the forward propagation to 
-    the input through the network, and returns the output.
-    
-    Args:
-    - network (list): a list of layers that make up the neural network.
-    - input (numpy.ndarray): the input data.
-    
-    Returns:
-    - output (numpy.ndarray): the output after forward propagation through the network.
-    """
-    output = input
-    for layer in network:
-        output = layer.forward(output)
-    return output
-
-
-# In[ ]:
-
-
-def train(network, loss, loss_prime, x_train, y_train, x_val , y_val , epochs = 1000, learning_rate = 0.01, early_stopping = False , patience = 5 ,  verbose = True):
-    """
-    This function trains a neural network using the specified loss function and its derivative, 
-    and prints out the training and validation errors as well as the training and validation accuracies 
-    at each epoch.
-    
-    Args:
-    - network (list): a list of layers that make up the neural network.
-    - loss (function): the loss function to be used for training the network.
-    - loss_prime (function): the derivative of the loss function to be used for training the network.
-    - x_train (numpy.ndarray): the input training data.
-    - y_train (numpy.ndarray): the target training data.
-    - x_val (numpy.ndarray): the input validation data.
-    - y_val (numpy.ndarray): the target validation data.
-    - epochs (int): the number of epochs to train the network.
-    - learning_rate (float): the learning rate used for training the network.
-    - verbose (bool): a flag that indicates whether to print out the training and validation errors 
-                      and accuracies at each epoch.
-                      
-    Returns:
-    - None
-    """
-    cost_train = []
-    cost_val = []
-    train_acc = []
-    val_acc = []
-    patience = 0
-    early_stopping = False
-    patience_counter = 0
-    best_val_loss = np.inf
-    epoch_counter = 0
-    best_epoch = 0
-    continue_training = True
-    for e in range(epochs):
-        error_train = 0
-        error_val = 0
-        pred_train = []
-        pred_val = []
-        
-        if(continue_training == False):
-                print("Stopped Training due to Early Stoping after {} epochs".format(epoch_counter))
-                # print("Optimal Validation Loss : {}".format(best_val_loss))
-                break
-
-        # Training loop
-        for x, y in zip(x_train, y_train):
-            # forward
-            output_t = predict(network, x)
-            pred_train.append(output_t)
-
-            # error
-            error_train += loss(y , output_t)
-
-            # backward
-            grad = loss_prime(y, output_t)
-            for layer in reversed(network):
-                grad = layer.backward(grad, learning_rate)
-
-        # Validation loop
-        for x_v , y_v in zip(x_val, y_val):
-            output_v = predict(network , x_v)
-            pred_val.append(output_v)
-            error_val += loss(y_v , output_v)
-
-        # Calculate and print out the training and validation errors and accuracies
-        error_train /= len(x_train)
-        error_val /= len(x_val)
-        cost_train.append(error_train)
-        cost_val.append(error_val)
-        acc_train = accuracy_score(y_train ,np.array(pred_train))
-        acc_val = accuracy_score(y_val ,np.array(pred_val))
-        train_acc.append(acc_train)
-        val_acc.append(acc_val)
-
-        if(epoch_counter > 5):
-            if(early_stopping == True):
-                if(patience_counter <= patience):
-                    if (best_val_loss > cost_val):
-                      patience_counter = 0
-                      best_epoch = epoch_counter + 1
-                      .best_val_loss = cost_val
-                      for layer in layers:
-                          if hasattr(layer, 'weights'):
-                              if not hasattr(layer, 'best_weights'):
-                                  layer.best_weights = np.zeros_like(layer.weights)
-                                  layer.best_biases = np.zeros_like(layer.biases)
-                              
-                              layer.best_weights = layer.weights
-                              layer.best_biases = layer.biases              
-                    else:
-                        patience_counter += 1            
-                else:
-                    continue_training = False
-                    for layer in layers:
-                        if hasattr(layer, 'weights'):
-                            layer.weights = layer.best_weights
-                            layer.biases = layer.best_biases
-
-        if verbose:
-            print(f"{e + 1}/{epochs}, error_train = {error_train} , train_accuracy = {acc_train}, error_val = {error_val} , val_accuracy = {acc_val} ")
-    return cost_train , cost_val , train_acc , val_acc
-
-
-# **Building a big-enough CNN architecture that would overfit the K-MNIST data. To ensure overfitting , we are considering only small subset of training dataset and training the model for more number of epochs.**
-
-# In[ ]:
-
-
-# Define the neural network architecture as a list of layers
-network = [
-    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
-    Sigmoid(),
-    Convolutional((5, 22, 22), 3, 5),
-    Sigmoid(),
-    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
-    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(100, 10),  # Fully connected layer with 10 output units
-    Softmax()   # Softmax activation function
-]
-
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train_unreg , cost_val_unreg , train_acc_unreg , val_acc_unreg = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain,  # Training input data
-    ytrain,  # Training target data
-    xval[:1000],  # Validation input data
-    yval[:1000],  # Validation target data
-    epochs= 50 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# **Imposing L2 regularizer and plotting the bias-variance curves.**
-
-# In[ ]:
-
-
-# Define the neural network architecture as a list of layers
-network = [
-    Convolutional((1, 28, 28), 3, 8 , 0.0005),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((8, 26, 26), 3, 5 , 0.0005),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((5, 24, 24), 3, 5 , 0.0005),  # Optional additional convolutional layer
-    Sigmoid(),
-    Convolutional((5, 22, 22), 3, 5 , 0.0005),
-    Sigmoid(),
-    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
-    Dense(5 * 20 * 20, 1000 , 0.0005),  # Fully connected layer with 100 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(1000 , 100 , 0.0005),  # Fully connected layer with 1000 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(100, 10 , 0.0005),  # Fully connected layer with 10 output units
-    Softmax()   # Softmax activation function
-]
-
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train_reg , cost_val_reg , train_acc_reg , val_acc_reg = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain,  # Training input data
-    ytrain,  # Training target data
-    xval[:2000],  # Validation input data
-    yval[:2000],  # Validation target data
-    epochs= 50 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# In[ ]:
-
-
-epochs = []
-for epoch in range(1 , 51):
-  epochs.append(epoch)
-
-
-costs_val_unreg = np.squeeze(cost_val_unreg)
-costs_train_unreg = np.squeeze(cost_train_unreg)
-
-costs_val_reg = np.squeeze(cost_val_reg)
-costs_train_reg = np.squeeze(cost_train_reg)
-
-
-# create a figure and axis
-fig, ax = plt.subplots()
-
-# plot err1 against x_list
-ax.plot(epochs ,  costs_train_unreg, label='Error during Training')
-
-# plot err2 against x_list
-ax.plot(epochs , costs_val_unreg , label = 'Error during Validation without Regularization')
-
-# plot errr against x_list
-ax.plot(epochs , costs_val_reg , label = 'Error during Validation with Regularization')
-
-# add labels and title
-ax.set_xlabel('Number of Epochs')
-ax.set_ylabel('Error')
-ax.set_title('Error  against Number of epochs')
-
-# add legend
-ax.legend()
-
-# show the plot
-plt.show()
-
-
-# **Perturbing each of the input images with additive Gaussian noise and reporting its regularization impact.**
-
-# In[ ]:
-
-
-xtrain_noise = xtrain + np.random.randn(*(xtrain.shape))
-
-
-# In[ ]:
-
-
-# Define the neural network architecture as a list of layers
-network = [
-    Convolutional((1, 28, 28), 3, 8),   # Convolutional layer with input shape of (1, 28, 28), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((8, 26, 26), 3, 5),  # Convolutional layer with input shape of (5, 26, 26), kernel size of 3, and 5 filters
-    Sigmoid(),   # Sigmoid activation function
-    Convolutional((5, 24, 24), 3, 5),  # Optional additional convolutional layer
-    Sigmoid(),
-    Convolutional((5, 22, 22), 3, 5),
-    Sigmoid(),
-    Reshape((5, 20, 20), (5 * 20 * 20, 1)),  # Reshape the output of the previous layer into a 2D array
-    Dense(5 * 20 * 20, 1000),  # Fully connected layer with 100 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(1000 , 100),  # Fully connected layer with 1000 hidden units
-    Sigmoid(),  # Sigmoid activation function
-    Dense(100, 10),  # Fully connected layer with 10 output units
-    Softmax()   # Softmax activation function
-]
-
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train_reg_noise , cost_val_reg_noise , train_acc_reg_noise , val_acc_reg_noise = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain_noise,  # Training noisy input data
-    ytrain,  # Training target data
-    xval[:1000],  # Validation input data
-    yval[:1000],  # Validation target data
-    epochs= 25 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# In[ ]:
-
-
-epochs = []
-for epoch in range(1 , 26):
-  epochs.append(epoch)
-
-
-costs_val_reg_noise = np.squeeze(cost_val_reg_noise)
-costs_train_reg_noise = np.squeeze(cost_train_reg_noise)
-
-
-# create a figure and axis
-fig, ax = plt.subplots()
-
-# plot err1 against x_list
-ax.plot(epochs ,  costs_train_reg_noise, label='Error during Training')
-
-# plot err2 against x_list
-ax.plot(epochs , costs_val_reg_noise , label = 'Error during Validation with Noise')
-
-# add labels and title
-ax.set_xlabel('Number of Epochs')
-ax.set_ylabel('Error')
-ax.set_title('Error  against Number of epochs')
-
-# add legend
-ax.legend()
-
-# show the plot
-plt.show()
-
-
-# **Imposing early-stopping as regularizers and plotting the bias-variance curves**
-
-# In[ ]:
-
-
-# Train the neural network
-cost_train , cost_val , train_acc , val_acc = train(
-    network,  # The network architecture
-    binary_cross_entropy,  # Binary cross-entropy loss function
-    binary_cross_entropy_prime,  # Derivative of the loss function
-    xtrain,  # Training noisy input data
-    ytrain,  # Training target data
-    xval[:1000],  # Validation input data
-    yval[:1000],  # Validation target data
-    epochs= 18 ,  # Number of training epochs
-    learning_rate=0.1  # Learning rate for weight updates
-)
-
-
-# In[ ]:
-
-
-epochs = []
-for epoch in range(1 , 51):
-  epochs.append(epoch)
-
-
-# create a figure and axis
-fig, ax = plt.subplots()
-
-# plot err1 against x_list
-ax.plot(epochs ,  costs_train_unreg, label='Train loss without Regularization')
-
-# plot err2 against x_list
-ax.plot(epochs , costs_val_unreg_ , label = 'Validation loss without Regularization')
-
-ax.plot(epochs , costs_val_reg_noise , label = 'Input Data Pertubed with Noise')
-
-ax.plot(epochs , costs_val , label = 'With Early Stopping')
-
-# add labels and title
-ax.set_xlabel('No of epochs'')
-ax.set_ylabel('Cross Entropy Error')
-
-# add legend
-ax.legend()
-
-# show the plot
-plt.show()
-
-
-# In[ ]:
-
-
-
 
 
 # # P7 (Neural Networks, MLP)
