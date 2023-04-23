@@ -3,7 +3,7 @@
 
 # # Initialization
 
-# In[1]:
+# In[2]:
 
 
 import numpy as np
@@ -19,7 +19,7 @@ from PIL import Image
 
 # ### Uncompress compressed files
 
-# In[2]:
+# In[3]:
 
 
 get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../data')
@@ -27,7 +27,7 @@ get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../
 
 # ### Custom functions
 
-# In[3]:
+# In[68]:
 
 
 def genFromImage(imageDir, size=(8, 8)):
@@ -62,7 +62,7 @@ def trainTestSplit(data, train_ratio, func):
         x_test[label], y_test[label] = func(label, data[label][m:])
     
     X, Y, X_test, Y_test = [x.reshape(-1, x.shape[-1]) for x in [np.array(x) for x in [x_train, y_train, x_test, y_test]]]
-    return X, Y.flatten(), X_test, Y_test.flatten(), classStats
+    return X, np.array(Y.flatten(), dtype=int), X_test, np.array(Y_test.flatten(), dtype=int), classStats
 
 def imgToFeatures(label, data, stats=False):
     X = np.array([x.flatten() for x in data]) / 255
@@ -81,7 +81,7 @@ def stats(label, data, stats=False):
 
 # ### Data extraction
 
-# In[4]:
+# In[69]:
 
 
 dataFolder = "../data"
@@ -110,7 +110,7 @@ print("(Classification)  p4[data]:", p4["data"].shape)
 print("(Classification)  p5[data]:     ", p5["data"].shape)
 
 
-# In[5]:
+# In[70]:
 
 
 classStats = {}
@@ -139,7 +139,7 @@ p3["X_test"], p3["Y_test"] = splitData(p3["test"])
 p3["X"].shape, p3["Y"].shape, p3["X_test"].shape, p3["Y_test"].shape
 
 
-# In[6]:
+# In[71]:
 
 
 p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(p4["data"], 0.7, imgToFeatures)
@@ -147,7 +147,7 @@ p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(
 p4["X"].shape, p4["Y"].shape, p4["X_test"].shape, p4["Y_test"].shape
 
 
-# In[7]:
+# In[72]:
 
 
 classWiseData = [[] for _ in range(10)]
@@ -159,7 +159,7 @@ p5["X"], p5["Y"], p5["X_test"], p5["Y_test"], p5["classStats"] = trainTestSplit(
 p5["X"].shape, p5["Y"].shape, p5["X_test"].shape, p5["Y_test"].shape
 
 
-# In[8]:
+# In[73]:
 
 
 fig, ax = plt.subplots(2, 5, figsize=(12, 4))
@@ -172,9 +172,9 @@ for i in range(p4["data"].shape[0]):
 fig.tight_layout()
 
 
-# # Custom common functions
+# # Metrics
 
-# In[9]:
+# In[54]:
 
 
 class metrics:
@@ -198,25 +198,10 @@ class metrics:
             FP, FN = sum_predict[i] - TP, sum_actual[i] - TP
             p, r = TP/(TP + FP + 1e-8), TP/(TP + FN + 1e-8)
             f1[i] = 2 * p * r / (p + r + 1e-8)
-        return f1      
-    
-    def print(pred, Y, pred_test, Y_test, result=False):
-        n_labels = len(np.unique(Y))
-                
-        cnf_train = metrics.confusionMatrix(pred, Y, n_labels)
-        cnf_test = metrics.confusionMatrix(pred_test, Y_test, n_labels)
-        acc_train = metrics.accuracy(pred, Y)
-        acc_test = metrics.accuracy(pred_test, Y_test)
-        f1_train = metrics.f1Score(cnf_train)
-        f1_test = metrics.f1Score(cnf_test)
-        
-        print("------------------ Train ---------------------")
-        print("Classification Accuracy : ", acc_train * 100, "%")
-        print("F1 Score                : ", f1_train)
-        print("------------------ Test ----------------------")
-        print("Classification Accuracy : ", acc_test * 100, "%")
-        print("F1 Score                : ", f1_test)
-        print("Confusion Matrix        : ")
+        return f1    
+
+    def printCnf(cnf_train, cnf_test):
+        print("Confusion Matrix:")
         print(cnf_test)
         
         fig, ax = plt.subplots(1, 2, figsize=(16, 8))
@@ -233,9 +218,30 @@ class metrics:
         ax[1].set_title("Confusion Matrix (test)")
         for (x, y), value in np.ndenumerate(cnf_test):
             ax[1].text(x, y, f"{value: .0f}", va="center", ha="center")
+
+    
+    def print(pred, Y, pred_test, Y_test, visualize=True, result=False):
+        n_labels = len(np.unique(Y))
+                
+        cnf_train = metrics.confusionMatrix(pred, Y, n_labels)
+        cnf_test = metrics.confusionMatrix(pred_test, Y_test, n_labels)
+        acc_train = metrics.accuracy(pred, Y)
+        acc_test = metrics.accuracy(pred_test, Y_test)
+        f1_train = metrics.f1Score(cnf_train)
+        f1_test = metrics.f1Score(cnf_test)
+        
+        if visualize:
+            print("------------------ Train ---------------------")
+            print("Classification Accuracy : ", acc_train * 100, "%")
+            print("Average F1 Score                : ", np.average(f1_train))
+            print("------------------ Test ----------------------")
+            print("Classification Accuracy : ", acc_test * 100, "%")
+            print("Average F1 Score                : ", np.average(f1_test))
+            
+            metrics.printCnf(cnf_train, cnf_test)
         
         if result:
-            return [acc_train, f1_train], [acc_test, f1_test]
+            return [acc_train, f1_train, cnf_train], [acc_test, f1_test, cnf_test]
 
 
 # # Problem 1
@@ -245,6 +251,237 @@ class metrics:
 # For the MNIST problem, consider the PCA data
 # 
 # Data: `p3, p5`
+
+# ## Implementation
+
+# ### Impurity Funcions
+
+# In[49]:
+
+
+def gini(data):
+    n = data.shape[0]
+    if n == 0:
+        return 0
+    p = np.bincount(data) / n
+    return 1 - np.sum(p ** 2)
+
+print("Gini (test): ", gini(p3["Y"]), gini(p3['Y'][p3["Y"] == 0]))
+
+def entropy(data):
+    n = data.shape[0]
+    if n == 0:
+        return 0
+    p = np.bincount(data) / n
+    return -np.sum(p * np.log2(p + 1e-8))
+
+print("Entropy (test): ", entropy(p3["Y"]), entropy(p3['Y'][p3["Y"] == 0]))
+
+
+# ### CART algorithm
+
+# In[50]:
+
+
+# restricting the number of thresholds to increase the speed of the algorithm
+def recommendedThresholds(col, y):
+    a = np.c_[col, y]
+    a.sort(axis=0)
+    b = []
+    for i in range(1, a.shape[0]):
+        if a[i][1] != a[i - 1][1]:
+            b.append((a[i][0] + a[i - 1][0]) / 2)
+    return b
+
+def recommendedSplit(X, y, impurity):
+    best_impurity = 1e9
+    best_split = None
+    for i, col in enumerate(X.T):
+        ts = recommendedThresholds(col, y)
+        for t in ts:
+            left, right = y[col <= t], y[col > t]
+            impurity_split = (impurity(left) * left.size + impurity(right) * right.size) / y.size
+            if impurity_split < best_impurity:
+                best_impurity = impurity_split
+                best_split = (i, t)
+    return best_split
+
+recommendedSplit(p3["X"], p3["Y"], gini)
+
+
+# ### Decision Tree
+
+# In[51]:
+
+
+# inner nodes are [i, t, left, right]
+# leaf node is a number (class label)
+# returns a tree in pre-order traversal format
+def buildTree(X, y, impurity, max_depth, depth=0):
+    if depth == max_depth:
+        return [np.argmax(np.bincount(y))]
+    if np.unique(y).size == 1:
+        return [y[0]]
+    
+    split = recommendedSplit(X, y, impurity)
+
+    if split is None:
+        return [np.argmax(np.bincount(y))]
+    
+    i, t = split
+    left, right = y[X[:, i] <= t], y[X[:, i] > t]
+    leftX, rightX = X[X[:, i] <= t], X[X[:, i] > t]
+
+    if left.size == 0 or right.size == 0:
+        return [np.argmax(np.bincount(y))]
+    
+    return [split, buildTree(leftX, left, impurity, max_depth, depth + 1), buildTree(rightX, right, impurity, max_depth, depth + 1)]
+
+def printTree(tree, depth=0):
+    if len(tree) == 1:
+        print(" " * depth, "Leaf: ", tree[0])
+    else:
+        print(" " * depth, f"Split: {tree[0][0]:.2f} <=  {tree[0][1]:.2f}")
+        printTree(tree[1], depth + 1)
+        printTree(tree[2], depth + 1)
+
+def predict(X, tree):
+    if len(tree) == 1:
+        return tree[0]
+    i, t = tree[0]
+    return predict(X, tree[1]) if X[i] <= t else predict(X, tree[2])
+    
+def predictAll(X, tree):
+    return np.array([predict(x, tree) for x in X])
+
+
+# ## Experiment on P3 Data
+
+# ### Using Gini as impurity measure
+
+# In[59]:
+
+
+depths = [3, 5, 7, 9, 11, 13, 17, 20]
+results = []
+
+for depth in depths:
+    tree = buildTree(p3["X"], p3["Y"], gini, depth)
+    results.append(metrics.print(predictAll(p3["X"], tree), p3["Y"], predictAll(p3["X_test"], tree), p3["Y_test"], visualize=False, result=True))
+
+bestResult_p3_gini = results[np.argmax([row[1][0] for row in results])]
+
+plt.plot(depths, [row[0][0] for row in results], label="train", marker='o')
+plt.plot(depths, [row[1][0] for row in results], label="test", marker='x')
+plt.xlabel("Complexity (Depth) -->")
+plt.ylabel("Accuracy -->")
+plt.legend()
+plt.title("Accuracy vs complexity")
+
+plt.show()
+
+
+# In[83]:
+
+
+print(f"Test Accuracy: {bestResult_p3_gini[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p3_gini[1][1]):.2f}")
+metrics.printCnf(bestResult_p3_gini[1][2], bestResult_p3_gini[1][2])
+
+
+# ### Using Cross-Entropy as impurity measure
+
+# In[61]:
+
+
+depths = [3, 5, 7, 9, 11, 13, 17, 20]
+results = []
+
+for depth in depths:
+    tree = buildTree(p3["X"], p3["Y"], entropy, depth)
+    results.append(metrics.print(predictAll(p3["X"], tree), p3["Y"], predictAll(p3["X_test"], tree), p3["Y_test"], visualize=False, result=True))
+
+bestResult_p3_entropy = results[np.argmax([row[1][0] for row in results])]
+
+plt.plot(depths, [row[0][0] for row in results], label="train", marker='o')
+plt.plot(depths, [row[1][0] for row in results], label="test", marker='x')
+plt.xlabel("Complexity (Depth) -->")
+plt.ylabel("Accuracy -->")
+plt.legend()
+plt.title("Accuracy vs complexity")
+
+plt.show()
+
+
+# In[82]:
+
+
+print(f"Test Accuracy: {bestResult_p3_entropy[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p3_entropy[1][1]):.2f}")
+metrics.printCnf(bestResult_p3_entropy[1][2], bestResult_p3_entropy[1][2])
+
+
+# ## Experiment on P5 Data (MNIST PCA)
+
+# ### Using Gini as impurity measure
+
+# In[74]:
+
+
+depths = [3, 5, 7, 9, 11, 13, 17, 20]
+results = []
+
+for depth in depths:
+    tree = buildTree(p5["X"], p5["Y"], gini, depth)
+    results.append(metrics.print(predictAll(p5["X"], tree), p5["Y"], predictAll(p5["X_test"], tree), p5["Y_test"], visualize=False, result=True))
+
+bestResult_p5_gini = results[np.argmax([row[1][0] for row in results])]
+
+plt.plot(depths, [row[0][0] for row in results], label="train", marker='o')
+plt.plot(depths, [row[1][0] for row in results], label="test", marker='x')
+plt.xlabel("Complexity (Depth) -->")
+plt.ylabel("Accuracy -->")
+plt.legend()
+plt.title("Accuracy vs complexity")
+
+plt.show()
+
+
+# In[84]:
+
+
+print(f"Test Accuracy: {bestResult_p5_gini[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p5_gini[1][1]):.2f}")
+metrics.printCnf(bestResult_p5_gini[1][2], bestResult_p5_gini[1][2])
+
+
+# ### Using Entropy as impurity measure
+
+# In[76]:
+
+
+depths = [3, 5, 7, 9, 11, 13, 17, 20]
+results = []
+
+for depth in depths:
+    tree = buildTree(p5["X"], p5["Y"], entropy, depth)
+    results.append(metrics.print(predictAll(p5["X"], tree), p5["Y"], predictAll(p5["X_test"], tree), p5["Y_test"], visualize=False, result=True))
+
+bestResult_p5_entropy = results[np.argmax([row[1][0] for row in results])]
+
+plt.plot(depths, [row[0][0] for row in results], label="train", marker='o')
+plt.plot(depths, [row[1][0] for row in results], label="test", marker='x')
+plt.xlabel("Complexity (Depth) -->")
+plt.ylabel("Accuracy -->")
+plt.legend()
+plt.title("Accuracy vs complexity")
+
+plt.show()
+
+
+# In[79]:
+
+
+print(f"Test Accuracy: {bestResult_p5_entropy[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p5_entropy[1][1]):.2f}")
+metrics.printCnf(bestResult_p5_entropy[1][2], bestResult_p5_entropy[1][2])
+
 
 # # Problem 2
 # 
