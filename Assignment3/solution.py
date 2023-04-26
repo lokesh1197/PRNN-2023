@@ -3,7 +3,7 @@
 
 # # Initialization
 
-# In[2]:
+# In[1]:
 
 
 import numpy as np
@@ -19,7 +19,7 @@ from PIL import Image
 
 # ### Uncompress compressed files
 
-# In[3]:
+# In[2]:
 
 
 get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../data')
@@ -27,7 +27,7 @@ get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../
 
 # ### Custom functions
 
-# In[68]:
+# In[3]:
 
 
 def genFromImage(imageDir, size=(8, 8)):
@@ -81,7 +81,7 @@ def stats(label, data, stats=False):
 
 # ### Data extraction
 
-# In[69]:
+# In[4]:
 
 
 dataFolder = "../data"
@@ -110,7 +110,7 @@ print("(Classification)  p4[data]:", p4["data"].shape)
 print("(Classification)  p5[data]:     ", p5["data"].shape)
 
 
-# In[70]:
+# In[5]:
 
 
 classStats = {}
@@ -139,7 +139,7 @@ p3["X_test"], p3["Y_test"] = splitData(p3["test"])
 p3["X"].shape, p3["Y"].shape, p3["X_test"].shape, p3["Y_test"].shape
 
 
-# In[71]:
+# In[6]:
 
 
 p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(p4["data"], 0.7, imgToFeatures)
@@ -147,7 +147,7 @@ p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(
 p4["X"].shape, p4["Y"].shape, p4["X_test"].shape, p4["Y_test"].shape
 
 
-# In[72]:
+# In[7]:
 
 
 classWiseData = [[] for _ in range(10)]
@@ -159,7 +159,7 @@ p5["X"], p5["Y"], p5["X_test"], p5["Y_test"], p5["classStats"] = trainTestSplit(
 p5["X"].shape, p5["Y"].shape, p5["X_test"].shape, p5["Y_test"].shape
 
 
-# In[73]:
+# In[8]:
 
 
 fig, ax = plt.subplots(2, 5, figsize=(12, 4))
@@ -174,7 +174,7 @@ fig.tight_layout()
 
 # # Metrics
 
-# In[54]:
+# In[9]:
 
 
 class metrics:
@@ -520,6 +520,71 @@ metrics.printCnf(bestResult_p5_entropy[1][2], bestResult_p5_entropy[1][2])
 # Plot the data variance as a function of the number of principal components.
 # 
 # Data: `p3, p4, p5`
+
+# In[10]:
+
+
+# returns eigen vectors and eigen values sorted by eigen values
+def pca(X):
+    m = X.shape[0]
+    X = X - np.mean(X, axis=0)
+    cov = np.dot(X.T, X) / (m - 1)
+    eigVals, eigVecs = np.linalg.eig(cov)
+    idx = eigVals.argsort()[::-1]
+    eigVecs = eigVecs[:, idx]
+    eigVals = eigVals[idx]
+    # return np.dot(X, eigVecs[:, :k])
+    return eigVecs, eigVals
+
+def pcaTransform(X, eigVecs, k):
+    return np.dot(X, eigVecs[:, :k])
+
+# data variance as a function of number of principal components
+def varianceCumSum(X):
+    eigVecs, eigVals = pca(X)
+    eigVals = eigVals[:k]
+    return np.sum(eigVals) / np.sum(eigVals)
+
+
+# ## Data variance vs number of principal components
+
+# In[17]:
+
+
+a = [4, 3, 2, 1]
+np.cumsum(a)
+
+
+# In[20]:
+
+
+fig, ax = plt.subplots(1, 3, figsize=(18, 5))
+_, eigVals = pca(p3["X"])
+eigValCumsum = np.cumsum(eigVals)
+eigValCumsum = eigValCumsum / eigValCumsum[-1]
+ax[0].plot(np.arange(1, len(eigVals) + 1), eigValCumsum, marker='o')
+ax[0].set_xlabel("k -->")
+ax[0].set_ylabel("Fraction of variance retained -->")
+ax[0].set_title("P3 data")
+
+_, eigVals = pca(p4["X"])
+eigValCumsum = np.cumsum(eigVals)
+eigValCumsum = eigValCumsum / eigValCumsum[-1]
+ax[1].plot(np.arange(1, len(eigVals) + 1), eigValCumsum, marker='o')
+ax[1].set_xlabel("k -->")
+ax[1].set_ylabel("Fraction of variance retained -->")
+ax[1].set_title("P4 data")
+
+_, eigVals = pca(p5["X"])
+eigValCumsum = np.cumsum(eigVals)
+eigValCumsum = eigValCumsum / eigValCumsum[-1]
+ax[2].plot(np.arange(1, len(eigVals) + 1), eigValCumsum, marker='o')
+ax[2].set_xlabel("k -->")
+ax[2].set_ylabel("Fraction of variance retained -->")
+ax[2].set_title("P5 data")
+
+plt.show()
+
 
 # In[ ]:
 
