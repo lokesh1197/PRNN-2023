@@ -3,7 +3,7 @@
 
 # # Initialization
 
-# In[1]:
+# In[2]:
 
 
 import numpy as np
@@ -19,7 +19,7 @@ from PIL import Image
 
 # ### Uncompress compressed files
 
-# In[2]:
+# In[3]:
 
 
 get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../data')
@@ -27,7 +27,7 @@ get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../
 
 # ### Custom functions
 
-# In[3]:
+# In[4]:
 
 
 def genFromImage(imageDir, size=(8, 8)):
@@ -81,7 +81,7 @@ def stats(label, data, stats=False):
 
 # ### Data extraction
 
-# In[4]:
+# In[5]:
 
 
 dataFolder = "../data"
@@ -110,7 +110,7 @@ print("(Classification)  p4[data]:", p4["data"].shape)
 print("(Classification)  p5[data]:     ", p5["data"].shape)
 
 
-# In[5]:
+# In[6]:
 
 
 classStats = {}
@@ -139,7 +139,7 @@ p3["X_test"], p3["Y_test"] = splitData(p3["test"])
 p3["X"].shape, p3["Y"].shape, p3["X_test"].shape, p3["Y_test"].shape
 
 
-# In[6]:
+# In[7]:
 
 
 p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(p4["data"], 0.7, imgToFeatures)
@@ -147,7 +147,7 @@ p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(
 p4["X"].shape, p4["Y"].shape, p4["X_test"].shape, p4["Y_test"].shape
 
 
-# In[7]:
+# In[8]:
 
 
 classWiseData = [[] for _ in range(10)]
@@ -159,7 +159,7 @@ p5["X"], p5["Y"], p5["X_test"], p5["Y_test"], p5["classStats"] = trainTestSplit(
 p5["X"].shape, p5["Y"].shape, p5["X_test"].shape, p5["Y_test"].shape
 
 
-# In[8]:
+# In[9]:
 
 
 fig, ax = plt.subplots(2, 5, figsize=(12, 4))
@@ -174,7 +174,7 @@ fig.tight_layout()
 
 # # Metrics
 
-# In[9]:
+# In[35]:
 
 
 class metrics:
@@ -192,13 +192,15 @@ class metrics:
     def f1Score(cnf):
         sum_predict = np.sum(cnf, axis=0)
         sum_actual  = np.sum(cnf, axis=1)
+        p = np.zeros(cnf.shape[1])
+        r = np.zeros(cnf.shape[1])
         f1 = np.zeros(cnf.shape[1])
         for i in range(f1.size):
             TP = cnf[i][i]
             FP, FN = sum_predict[i] - TP, sum_actual[i] - TP
-            p, r = TP/(TP + FP + 1e-8), TP/(TP + FN + 1e-8)
-            f1[i] = 2 * p * r / (p + r + 1e-8)
-        return f1    
+            p[i], r[i] = TP/(TP + FP + 1e-8), TP/(TP + FN + 1e-8)
+            f1[i] = 2 * p[i] * r[i] / (p[i] + r[i] + 1e-8)
+        return f1, p, r 
 
     def printCnf(cnf_train, cnf_test):
         print("Confusion Matrix:")
@@ -227,21 +229,25 @@ class metrics:
         cnf_test = metrics.confusionMatrix(pred_test, Y_test, n_labels)
         acc_train = metrics.accuracy(pred, Y)
         acc_test = metrics.accuracy(pred_test, Y_test)
-        f1_train = metrics.f1Score(cnf_train)
-        f1_test = metrics.f1Score(cnf_test)
+        f1_train, p_train, r_train = metrics.f1Score(cnf_train)
+        f1_test, p_test, r_test = metrics.f1Score(cnf_test)
         
         if visualize:
             print("------------------ Train ---------------------")
-            print("Classification Accuracy : ", acc_train * 100, "%")
-            print("Average F1 Score                : ", np.average(f1_train))
+            print(f"Classification Accuracy : {acc_train * 100:.2f}%")
+            print(f"Average F1 Score        : {np.average(f1_train):.2f}")
+            print(f"Average Precision       : {np.average(p_train):.2f}")
+            print(f"Average Recall          : {np.average(r_train):.2f}")
             print("------------------ Test ----------------------")
-            print("Classification Accuracy : ", acc_test * 100, "%")
-            print("Average F1 Score                : ", np.average(f1_test))
+            print(f"Classification Accuracy : {acc_test * 100:.2f}%")
+            print(f"Average F1 Score        : {np.average(f1_test):.2f}")
+            print(f"Average Precision       : {np.average(p_test):.2f}")
+            print(f"Average Recall          : {np.average(r_test):.2f}")
             
             metrics.printCnf(cnf_train, cnf_test)
         
         if result:
-            return [acc_train, f1_train, cnf_train], [acc_test, f1_test, cnf_test]
+            return [acc_train, f1_train, p_train, r_train, cnf_train], [acc_test, f1_test, p_test, r_test, cnf_test]
 
 
 # # Problem 1
@@ -256,7 +262,7 @@ class metrics:
 
 # ### Impurity Funcions
 
-# In[10]:
+# In[11]:
 
 
 def gini(data):
@@ -280,7 +286,7 @@ print("Entropy (test): ", entropy(p3["Y"]), entropy(p3['Y'][p3["Y"] == 0]))
 
 # ### CART algorithm
 
-# In[16]:
+# In[12]:
 
 
 # restricting the number of thresholds to increase the speed of the algorithm
@@ -313,7 +319,7 @@ recommendedSplit(p3["X"], p3["Y"], gini)
 
 # ### Decision Tree
 
-# In[17]:
+# In[71]:
 
 
 # inner nodes are [i, t, left, right]
@@ -361,7 +367,7 @@ def predictAll(X, tree):
 
 # ### Using Gini as impurity measure
 
-# In[59]:
+# In[47]:
 
 
 depths = [3, 5, 7, 9, 11, 13, 17, 20]
@@ -383,16 +389,16 @@ plt.title("Accuracy vs complexity")
 plt.show()
 
 
-# In[83]:
+# In[48]:
 
 
-print(f"Test Accuracy: {bestResult_p3_gini[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p3_gini[1][1]):.2f}")
-metrics.printCnf(bestResult_p3_gini[1][2], bestResult_p3_gini[1][2])
+print(f"Test Accuracy: {bestResult_p3_gini[1][0] * 100:.2f}%, Precision: {np.average(bestResult_p3_gini[1][2]):.2f}, Recall: {np.average(bestResult_p3_gini[1][3]):.2f}, F1 Score: {np.average(bestResult_p3_gini[1][1]):.2f}")
+metrics.printCnf(bestResult_p3_gini[0][4], bestResult_p3_gini[1][4])
 
 
 # ### Using Cross-Entropy as impurity measure
 
-# In[61]:
+# In[49]:
 
 
 depths = [3, 5, 7, 9, 11, 13, 17, 20]
@@ -414,18 +420,18 @@ plt.title("Accuracy vs complexity")
 plt.show()
 
 
-# In[82]:
+# In[50]:
 
 
-print(f"Test Accuracy: {bestResult_p3_entropy[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p3_entropy[1][1]):.2f}")
-metrics.printCnf(bestResult_p3_entropy[1][2], bestResult_p3_entropy[1][2])
+print(f"Test Accuracy: {bestResult_p3_entropy[1][0] * 100:.2f}%, Precision: {np.average(bestResult_p3_entropy[1][2]):.2f}, Recall: {np.average(bestResult_p3_entropy[1][3]):.2f}, F1 Score: {np.average(bestResult_p3_entropy[1][1]):.2f}")
+metrics.printCnf(bestResult_p3_entropy[0][4], bestResult_p3_entropy[1][4])
 
 
 # ## Experiment on P5 Data (MNIST PCA)
 
 # ### Using Gini as impurity measure
 
-# In[43]:
+# In[51]:
 
 
 depths = [3, 5, 7, 9, 11, 13, 17, 20]
@@ -447,16 +453,16 @@ plt.title("Accuracy vs complexity")
 plt.show()
 
 
-# In[44]:
+# In[52]:
 
 
-print(f"Test Accuracy: {bestResult_p5_gini[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p5_gini[1][1]):.2f}")
-metrics.printCnf(bestResult_p5_gini[1][2], bestResult_p5_gini[1][2])
+print(f"Test Accuracy: {bestResult_p5_gini[1][0] * 100:.2f}%, Precision: {np.average(bestResult_p5_gini[1][2]):.2f}, Recall: {np.average(bestResult_p5_gini[1][3]):.2f}, F1 Score: {np.average(bestResult_p5_gini[1][1]):.2f}")
+metrics.printCnf(bestResult_p5_gini[0][4], bestResult_p5_gini[1][4])
 
 
 # ### Using Entropy as impurity measure
 
-# In[76]:
+# In[53]:
 
 
 depths = [3, 5, 7, 9, 11, 13, 17, 20]
@@ -478,11 +484,11 @@ plt.title("Accuracy vs complexity")
 plt.show()
 
 
-# In[79]:
+# In[54]:
 
 
-print(f"Test Accuracy: {bestResult_p5_entropy[1][0] * 100:.2f}%, F1 Score: {np.average(bestResult_p5_entropy[1][1]):.2f}")
-metrics.printCnf(bestResult_p5_entropy[1][2], bestResult_p5_entropy[1][2])
+print(f"Test Accuracy: {bestResult_p5_entropy[1][0] * 100:.2f}%, Precision: {np.average(bestResult_p5_entropy[1][2]):.2f}, Recall: {np.average(bestResult_p5_entropy[1][3]):.2f}, F1 Score: {np.average(bestResult_p5_entropy[1][1]):.2f}")
+metrics.printCnf(bestResult_p5_entropy[0][4], bestResult_p5_entropy[1][4])
 
 
 # # Problem 2
@@ -493,7 +499,7 @@ metrics.printCnf(bestResult_p5_entropy[1][2], bestResult_p5_entropy[1][2])
 
 # ## Implementation
 
-# In[19]:
+# In[14]:
 
 
 def bootstrap(X, Y):
@@ -522,7 +528,7 @@ def predictForestProb(X, trees):
 
 # ### Number of trees: 10, Number of features: 10
 
-# In[27]:
+# In[36]:
 
 
 trees = random_forest(p3["X"], p3["Y"], n_trees=10, depth=15, impurity=gini)
@@ -531,7 +537,7 @@ metrics.print(predictForest(p3["X"], trees), p3["Y"], predictForest(p3["X_test"]
 
 # ### Number of trees: 15, Number of features: 10
 
-# In[28]:
+# In[37]:
 
 
 trees = random_forest(p3["X"], p3["Y"], n_trees=15, depth=15, impurity=gini)
@@ -540,7 +546,7 @@ metrics.print(predictForest(p3["X"], trees), p3["Y"], predictForest(p3["X_test"]
 
 # ### Number of trees: 20, Number of features: 10
 
-# In[29]:
+# In[38]:
 
 
 trees = random_forest(p3["X"], p3["Y"], n_trees=20, depth=15, impurity=gini)
@@ -549,7 +555,7 @@ metrics.print(predictForest(p3["X"], trees), p3["Y"], predictForest(p3["X_test"]
 
 # ### Number of trees: 25, Number of features: 10
 
-# In[30]:
+# In[39]:
 
 
 trees = random_forest(p3["X"], p3["Y"], n_trees=25, depth=15, impurity=gini)
@@ -558,7 +564,7 @@ metrics.print(predictForest(p3["X"], trees), p3["Y"], predictForest(p3["X_test"]
 
 # ### Number of trees: 20, Number of features: 7
 
-# In[31]:
+# In[40]:
 
 
 trees = random_forest(p3["X"], p3["Y"], n_trees=20, depth=15, impurity=gini, n_features=7)
@@ -567,7 +573,7 @@ metrics.print(predictForest(p3["X"], trees), p3["Y"], predictForest(p3["X_test"]
 
 # ### Number of trees: 20, Number of features: 5
 
-# In[32]:
+# In[41]:
 
 
 trees = random_forest(p3["X"], p3["Y"], n_trees=20, depth=15, impurity=gini, n_features=5)
@@ -576,7 +582,7 @@ metrics.print(predictForest(p3["X"], trees), p3["Y"], predictForest(p3["X_test"]
 
 # ### Number of trees: 20, Number of features: 3
 
-# In[33]:
+# In[42]:
 
 
 trees = random_forest(p3["X"], p3["Y"], n_trees=20, depth=15, impurity=gini, n_features=3)
@@ -587,7 +593,7 @@ metrics.print(predictForest(p3["X"], trees), p3["Y"], predictForest(p3["X_test"]
 
 # ### Number of trees: 10, Number of features: 64
 
-# In[34]:
+# In[43]:
 
 
 trees = random_forest(p4["X"], p4["Y"], n_trees=10, depth=15, impurity=gini)
@@ -596,7 +602,7 @@ metrics.print(predictForest(p4["X"], trees), p4["Y"], predictForest(p4["X_test"]
 
 # ### Number of trees: 15, Number of features: 64
 
-# In[35]:
+# In[44]:
 
 
 trees = random_forest(p4["X"], p4["Y"], n_trees=15, depth=15, impurity=gini)
@@ -605,7 +611,7 @@ metrics.print(predictForest(p4["X"], trees), p4["Y"], predictForest(p4["X_test"]
 
 # ### Number of trees: 20, Number of features: 64
 
-# In[36]:
+# In[45]:
 
 
 trees = random_forest(p4["X"], p4["Y"], n_trees=20, depth=15, impurity=gini)
@@ -614,7 +620,7 @@ metrics.print(predictForest(p4["X"], trees), p4["Y"], predictForest(p4["X_test"]
 
 # ### Number of trees: 25, Number of features: 64
 
-# In[37]:
+# In[46]:
 
 
 trees = random_forest(p4["X"], p4["Y"], n_trees=25, depth=15, impurity=gini)
@@ -623,7 +629,7 @@ metrics.print(predictForest(p4["X"], trees), p4["Y"], predictForest(p4["X_test"]
 
 # ### Number of trees: 20, Number of features: 16
 
-# In[43]:
+# In[47]:
 
 
 trees = random_forest(p4["X"], p4["Y"], n_trees=20, depth=15, impurity=gini, n_features=16)
@@ -632,7 +638,7 @@ metrics.print(predictForest(p4["X"], trees), p4["Y"], predictForest(p4["X_test"]
 
 # ### Number of trees: 20, Number of features: 4
 
-# In[44]:
+# In[48]:
 
 
 trees = random_forest(p4["X"], p4["Y"], n_trees=20, depth=15, impurity=gini, n_features=4)
@@ -643,7 +649,7 @@ metrics.print(predictForest(p4["X"], trees), p4["Y"], predictForest(p4["X_test"]
 
 # ### Number of trees: 10, Number of features: 10
 
-# In[25]:
+# In[49]:
 
 
 trees = random_forest(p5["X"], p5["Y"], n_trees=10, depth=15, impurity=gini)
@@ -670,7 +676,7 @@ metrics.print(predictForest(p5["X"], trees), p5["Y"], predictForest(p5["X_test"]
 
 # ### Number of trees: 25, Number of features: 10
 
-# In[26]:
+# In[52]:
 
 
 trees = random_forest(p5["X"], p5["Y"], n_trees=25, depth=15, impurity=gini)
@@ -679,7 +685,7 @@ metrics.print(predictForest(p5["X"], trees), p5["Y"], predictForest(p5["X_test"]
 
 # ### Number of trees: 20, Number of features: 7
 
-# In[22]:
+# In[53]:
 
 
 trees = random_forest(p5["X"], p5["Y"], n_trees=20, depth=15, impurity=gini, n_features=7)
@@ -688,7 +694,7 @@ metrics.print(predictForest(p5["X"], trees), p5["Y"], predictForest(p5["X_test"]
 
 # ### Number of trees: 20, Number of features: 5
 
-# In[23]:
+# In[54]:
 
 
 trees = random_forest(p5["X"], p5["Y"], n_trees=20, depth=15, impurity=gini, n_features=5)
@@ -697,7 +703,7 @@ metrics.print(predictForest(p5["X"], trees), p5["Y"], predictForest(p5["X_test"]
 
 # ### Number of trees: 20, Number of features: 3
 
-# In[24]:
+# In[55]:
 
 
 trees = random_forest(p5["X"], p5["Y"], n_trees=20, depth=15, impurity=gini, n_features=3)
@@ -714,31 +720,291 @@ metrics.print(predictForest(p5["X"], trees), p5["Y"], predictForest(p5["X_test"]
 # 
 # Data: `p3, p4, p5`
 
-# In[39]:
+# ## Implementation
 
+# ### MLP
+
+# In[131]:
+
+
+class MLP:
+    def __init__(self, sizes, activation='sigmoid', activation_last_layer='softmax', loss='ce', learning_rate=0.01, random_seed=42):
+        np.random.seed(random_seed)
+        self.num_layers = len(sizes)
+        self.sizes = sizes
+        self.activation = activation
+        self.activation_last_layer = activation_last_layer
+        self.loss = loss
+        self.learning_rate = learning_rate
+        self.weights = [np.random.randn(sizes[i], sizes[i-1]) / np.sqrt(sizes[i-1]) for i in range(1, self.num_layers)]
+        self.biases = [np.random.randn(sizes[i], 1) for i in range(1, self.num_layers)]
+
+    def sigmoid(self, z):
+        return 1.0 / (1.0 + np.exp(-z))
+
+    def sigmoid_prime(self, z):
+        return self.sigmoid(z) * (1 - self.sigmoid(z))
+
+    def relu(self, z):
+        return np.maximum(0, z)
+
+    def relu_prime(self, z):
+        return np.where(z > 0, 1, 0)
+    
+    def softmax(self, z):
+        exp_z = np.exp(z - np.max(z))
+        return exp_z / np.sum(exp_z, axis=0, keepdims=True)
+
+    def softmax_prime(self, z):
+        return self.softmax(z) * (1 - self.softmax(z))
+
+    def cross_entropy_loss(self, y, y_pred):
+        m = y.shape[1]
+        cost = -1/m * np.sum(y * np.log(y_pred + 1e-8))
+        return np.squeeze(cost)
+
+    def cross_entropy_loss_prime(self, y, y_pred):
+        return y_pred - y
+
+    def squared_error_loss(self, y, y_pred):
+        m = y.shape[1]
+        cost = 1/(2*m) * np.sum((y_pred - y)**2)
+        return np.squeeze(cost)
+
+    def squared_error_loss_prime(self, y, y_pred):
+        return y_pred - y
+
+    def forward(self, X):
+        a = X.T
+        for i in range(self.num_layers-1):
+            z = np.dot(self.weights[i], a) + self.biases[i]
+            if i == self.num_layers-2:
+                if self.activation_last_layer == 'softmax':
+                    a = self.softmax(z)
+            else:
+                if self.activation == 'sigmoid':
+                    a = self.sigmoid(z)
+                elif self.activation == 'relu':
+                    a = self.relu(z)
+                    
+        return a.T
+
+    def backward(self, X, y):
+        m = X.shape[0]
+        a = [X.T]
+        z_s = []
+        for i in range(self.num_layers-1):
+            z = np.dot(self.weights[i], a[-1]) + self.biases[i]
+            z_s.append(z)
+            if i == self.num_layers-2:
+                if self.activation_last_layer == 'softmax':
+                    a.append(self.softmax(z))
+            else:
+                if self.activation == 'sigmoid':
+                    a.append(self.sigmoid(z))
+                elif self.activation == 'relu':
+                    a.append(self.relu(z))
+                    
+        if self.loss == 'ce':
+            d_a = self.cross_entropy_loss_prime(y.T, a[-1])
+        elif self.loss == 'mse':
+            d_a = self.squared_error_loss_prime(y.T, a[-1])
+            
+        d_z = d_a
+        d_weights = []
+        d_biases = []
+        for i in range(self.num_layers-2, -1, -1):
+            d_weights.insert(0, np.dot(d_z, a[i].T) / m)
+            d_biases.insert(0, np.sum(d_z, axis=1, keepdims=True) / m)
+            if i > 0:
+                if self.activation == 'sigmoid':
+                    d_z = np.dot(self.weights[i].T, d_z) * self.sigmoid_prime(z_s[i-1])
+                elif self.activation == 'relu':
+                    d_z = np.dot(self.weights[i].T, d_z) * self.relu_prime(z_s[i-1])
+                    
+        return d_weights, d_biases
+    
+    def train(self, X_train, Y_train, X_val, Y_val, num_epochs, batch_size): 
+        n_labels = len(np.unique(Y_train))
+        y_train, y_val = [np.zeros((y.shape[0], n_labels)) for y in [Y_train, Y_val]]
+        for i, j in enumerate(Y_train):
+            y_train[i][int(j)] = 1
+        for i, j in enumerate(Y_val):
+            y_val[i][int(j)] = 1   
+            
+        train_losses = []
+        val_losses = []
+        train_accs = []
+        val_accs = []
+        
+        for i in range(num_epochs):
+            permutation = np.random.permutation(X_train.shape[0])
+            X_train = X_train[permutation, :]
+            y_train = y_train[permutation]
+            
+            for j in range(0, X_train.shape[0], batch_size):
+                
+                X_batch = X_train[j : j + batch_size, :]
+                y_batch = y_train[j : j + batch_size]
+                
+                d_weights, d_biases = self.backward(X_batch, y_batch)
+                
+                for k in range(len(self.weights)):
+                    self.weights[k] -= self.learning_rate * d_weights[k]
+                    self.biases[k] -= self.learning_rate * d_biases[k]
+                    
+            y_pred_train = self.forward(X_train)
+            y_pred_val = self.forward(X_val)
+            
+            if self.loss == 'ce':
+                train_loss = self.cross_entropy_loss(y_train, y_pred_train)
+                val_loss = self.cross_entropy_loss(y_val, y_pred_val)
+            elif self.loss == 'mse':
+                train_loss = self.squared_error_loss(y_train, y_pred_train)
+                val_loss = self.squared_error_loss(y_val, y_pred_val)
+                
+            train_losses.append(train_loss)
+            val_losses.append(val_loss)
+            
+            acc_params_train = [np.argmax(y_train, axis=1), np.argmax(y_pred_train, axis=1)]
+            acc_params_val = [np.argmax(y_val, axis=1), np.argmax(y_pred_val, axis=1)]
+            
+            train_acc = metrics.accuracy(*acc_params_train)
+            val_acc = metrics.accuracy(*acc_params_val)
+            
+            train_accs.append(train_acc)
+            val_accs.append(val_acc)
+            
+            # train_f1 = metrics.f1Score(metrics.confusionMatrix(*acc_params_train, n_labels))
+            # val_f1 = metrics.f1Score(metrics.confusionMatrix(*acc_params_val, n_labels))
+            
+            # print(f"Epoch {i+1}: \t  train_loss = {train_loss:.2f}  \tval_loss = {val_loss:.2f} \t  train_acc = {train_acc:.2f}  \t val_acc = {val_acc:.2f}")
+        return train_losses, val_losses, train_accs, val_accs
+
+
+# ### Adaboost
+
+# In[144]:
+
+
+def mlpForAdaboost(X, y, hidden_layers=[32, 16]):
+    n_labels = len(np.unique(y))
+
+    indices = np.arange(X.shape[0])
+    np.random.shuffle(indices)
+
+    s = int(0.7 * X.shape[0])
+    xtrain, xval = X[indices[:s]], X[indices[s:]]
+    ytrain, yval = y[indices[:s]], y[indices[s:]]
+
+    layers = [xtrain.shape[1], *hidden_layers, n_labels]
+    mlp = MLP(layers, 'sigmoid', 'softmax','ce', learning_rate = 0.1)
+    mlp.train(xtrain, ytrain, xval, yval, num_epochs = 50 , batch_size = 256)
+    return mlp
 
 # adaboost with numpy
-def adaboost(X, Y, T, depth, stump):
-    m, n = X.shape
-    w = np.ones(m) / m
-    trees = []
+def adaboost(X, y, num_DT_classifiers, max_depth=10, mlp_hidden_layers=[7]):
+    N = X.shape[0]
+    w = np.ones(N) / N
+    classifiers = []
     alphas = []
-    for _ in range(T):
-        tree = stump(X, Y, w, depth)
-        trees.append(tree)
-        pred = predictAll(X, tree)
-        err = np.sum(w * (pred != Y))
-        alpha = 0.5 * np.log((1 - err) / (err + 2))
-        alphas.append(alpha)
-        w = w * np.exp(-alpha * Y * pred)
+    errors = []
+
+    # mlp as first classifier
+    mlp = mlpForAdaboost(X, y, mlp_hidden_layers)
+    y_pred = np.argmax(mlp.forward(X), axis=1)
+    error = np.sum(w * (y_pred != y))
+    alpha = np.log((1 - error) / error) / 2
+    w = w * np.exp(-alpha * y * y_pred)
+    w = w / np.sum(w)
+    classifiers.append(mlp)
+    alphas.append(alpha)
+    errors.append(error)
+
+    # decision trees are remaining classifiers
+    for _ in range(num_DT_classifiers):
+        tree = buildTree(X, y, gini, max_depth=max_depth)
+        y_pred = predictAll(X, tree)
+        error = np.sum(w * (y_pred != y))
+        alpha = np.log((1 - error) / error) / 2
+        w = w * np.exp(-alpha * np.array([1 if y_pred[i] == y[i] else -1 for i in range(N)]))
         w = w / np.sum(w)
-    return trees, alphas
+        classifiers.append(tree)
+        alphas.append(alpha)
+        errors.append(error)
 
-def predictAdaBoost(X, trees, alphas):
-    return np.sign(np.sum([alpha * predictAll(X, tree) for alpha, tree in zip(alphas, trees)], axis=0))
+    return classifiers, alphas, errors
 
-# trees, alphas = adaboost(p3["X"], p3["Y"], 100, 1, lambda X, Y, w, depth: buildTree(X, Y, gini, depth))
-# metrics.print(predictAdaBoost(p3["X"], trees, alphas), p3["Y"], predictAdaBoost(p3["X_test"], trees, alphas), p3["Y_test"], visualize=True, result=True)
+def predictAdaboost(X, classifiers, alphas, n_labels):
+    likelihoods = np.zeros((X.shape[0], n_labels))
+    y_pred = np.argmax(classifiers[0].forward(X), axis=1)
+    for i in range(X.shape[0]):
+        likelihoods[i][y_pred[i]] += alphas[0]
+    for i in range(1, len(classifiers) - 1):
+        y_pred = predictAll(X, classifiers[i])
+        for j in range(X.shape[0]):
+            likelihoods[j][y_pred[j]] += alphas[i]
+    return np.argmax(likelihoods, axis=1)
+
+
+# ## Experiment on P3 Data
+
+# In[145]:
+
+
+n_labels = len(np.unique(p3['Y']))
+c, a, e = adaboost(p3['X'], p3['Y'], 10, 4)
+metrics.print(predictAdaboost(p3['X'], c, a, n_labels), p3['Y'], predictAdaboost(p3['X_test'], c, a, n_labels), p3['Y_test'], visualize=True)
+
+
+# In[146]:
+
+
+plt.plot(np.arange(1, len(e) + 1), e)
+plt.xlabel('Number of classifiers')
+plt.ylabel('Error')
+plt.title('Train Error vs Number of classifiers')
+plt.show()
+
+
+# ## Experiment on P4 Data
+
+# In[158]:
+
+
+n_labels = len(np.unique(p4['Y']))
+c, a, e = adaboost(p4['X'], p4['Y'], 10, 15, [32])
+metrics.print(predictAdaboost(p4['X'], c, a, n_labels), p4['Y'], predictAdaboost(p4['X_test'], c, a, n_labels), p4['Y_test'], visualize=True)
+
+
+# In[159]:
+
+
+plt.plot(np.arange(1, len(e) + 1), e)
+plt.xlabel('Number of classifiers')
+plt.ylabel('Error')
+plt.title('Train Error vs Number of classifiers')
+plt.show()
+
+
+# ## Experiment on P5 Data
+
+# In[150]:
+
+
+n_labels = len(np.unique(p5['Y']))
+c, a, e = adaboost(p5['X'], p5['Y'], 10, 4)
+metrics.print(predictAdaboost(p5['X'], c, a, n_labels), p5['Y'], predictAdaboost(p5['X_test'], c, a, n_labels), p5['Y_test'], visualize=True)
+
+
+# In[151]:
+
+
+plt.plot(np.arange(1, len(e) + 1), e)
+plt.xlabel('Number of classifiers')
+plt.ylabel('Error')
+plt.title('Train Error vs Number of classifiers')
+plt.show()
 
 
 # # Problem 4
@@ -759,7 +1025,7 @@ def predictAdaBoost(X, trees, alphas):
 
 # ### GMM based clustering
 
-# In[40]:
+# In[156]:
 
 
 max_float = np.finfo("float64").max
@@ -799,15 +1065,20 @@ def gmm(X, k, max_iter = 100, random_seed=42):
         
     return weights, means, covs
 
+def predictGMM(X, weights, means, covs):
+    probs = np.array([[normal(x, means[i], covs[i]) * weights[i] for i in range(len(weights))] for x in X])
+    return np.argmax(probs, axis=1)
+
 
 # ### K-means clustering
 
-# In[41]:
+# In[ ]:
 
 
 # k-means clustering using numpy
-def kmeans(X, k, max_iter=100):
+def kmeans(X, k, max_iter=100, random_seed=42):
     # initialize centroids
+    np.random.seed(random_seed)
     centroids = np.random.uniform(low=X.min(axis=0), high=X.max(axis=0), size=(k, X.shape[1]))
     for _ in range(max_iter):
         # calculate distance of each point from each centroid
@@ -818,33 +1089,68 @@ def kmeans(X, k, max_iter=100):
         centroids = np.array([np.mean(X[clusters == i], axis=0) for i in range(k)])
     return clusters, centroids
 
+# predict cluster for each point
+def predictKmeans(X, centroids):
+    distances = np.linalg.norm(X[:, None] - centroids, axis=-1)
+    return np.argmin(distances, axis=-1)
 
-# In[42]:
+
+# In[160]:
 
 
-# mutual information score between two variables
-def mutualInfo(x, y):
-    # joint distribution
-    joint = np.histogram2d(x, y, bins=10)[0]
-    # marginal distribution
-    marginal_x = np.histogram(x, bins=10)[0]
-    marginal_y = np.histogram(y, bins=10)[0]
-    # calculate mutual information
-    mi = 0
-    for i in range(joint.shape[0]):
-        for j in range(joint.shape[1]):
-            if joint[i, j] != 0:
-                mi += joint[i, j] * np.log(joint[i, j] / (marginal_x[i] * marginal_y[j]))
-    return mi
+p3_gmm = gmm(p3['X'], 5)
+p3_kmeans = kmeans(p3['X'], 5)
 
-def normalized_mutual_info_score(y_true, y_pred):
-    return mutualInfo(y_true, y_pred) / np.sqrt(mutualInfo(y_true, y_true) * mutualInfo(y_pred, y_pred))
+
+# ### Evaluation Metrics
+
+# In[ ]:
+
+
+from sklearn.metrics.cluster import normalized_mutual_info_score
+
+def nmi(X, Y, k, max_iter=100, random_seed=42):
+    weights, means, covs = gmm(X, k, max_iter, random_seed)
+    labels_gmm = predictGMM(X, weights, means, covs)
+    _, centroids = kmeans(X, k, max_iter, random_seed)
+    labels_kmeans = predictKmeans(X, centroids)
+
+    nmi1 = normalized_mutual_info_score(Y, labels_gmm)
+    nmi2 = normalized_mutual_info_score(Y, labels_kmeans)
+
+    print(f'NMI between true labels and GMM: {nmi1:.3f}')
+    print(f'NMI between true labels and K-means: {nmi2:.3f}')
+
+labels_gmm = predictGMM(p3['X'], *p3_gmm)
+labels_kmeans = predictKmeans(p3['X'], p3_kmeans[1])
+
+# Compute NMI scores
+nmi1 = normalized_mutual_info_score(p3['Y'], labels_gmm)
+nmi2 = normalized_mutual_info_score(p3['Y'], labels_kmeans)
+
+# Print results
+print(f'NMI between true labels and prediction 1: {nmi1:.3f}')
+print(f'NMI between true labels and prediction 2: {nmi2:.3f}')
 
 
 # In[ ]:
 
 
+from sklearn.manifold import TSNE
 
+# Load data
+data = pd.read_csv('data.csv')
+X = data.iloc[:, :-1].values
+y = data.iloc[:, -1].values
+
+# Perform t-SNE
+tsne = TSNE(n_components=2, perplexity=30, learning_rate=200)
+X_tsne = tsne.fit_transform(X)
+
+# Plot the results
+plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y)
+plt.title('t-SNE plot')
+plt.show()
 
 
 # ## Experiment
