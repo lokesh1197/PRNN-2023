@@ -1072,7 +1072,7 @@ def predictGMM(X, weights, means, covs):
 
 # ### K-means clustering
 
-# In[ ]:
+# In[161]:
 
 
 # k-means clustering using numpy
@@ -1095,70 +1095,75 @@ def predictKmeans(X, centroids):
     return np.argmin(distances, axis=-1)
 
 
-# In[160]:
+# ## Experiment
 
-
-p3_gmm = gmm(p3['X'], 5)
-p3_kmeans = kmeans(p3['X'], 5)
-
-
-# ### Evaluation Metrics
-
-# In[ ]:
+# In[182]:
 
 
 from sklearn.metrics.cluster import normalized_mutual_info_score
+from sklearn.manifold import TSNE
 
-def nmi(X, Y, k, max_iter=100, random_seed=42):
+def visualize(X, Y, k, max_iter=100, random_seed=42):
     weights, means, covs = gmm(X, k, max_iter, random_seed)
     labels_gmm = predictGMM(X, weights, means, covs)
     _, centroids = kmeans(X, k, max_iter, random_seed)
     labels_kmeans = predictKmeans(X, centroids)
 
+    # Normalized Mutual Information
     nmi1 = normalized_mutual_info_score(Y, labels_gmm)
     nmi2 = normalized_mutual_info_score(Y, labels_kmeans)
 
-    print(f'NMI between true labels and GMM: {nmi1:.3f}')
+    print(f'NMI between true labels and     GMM: {nmi1:.3f}')
     print(f'NMI between true labels and K-means: {nmi2:.3f}')
 
-labels_gmm = predictGMM(p3['X'], *p3_gmm)
-labels_kmeans = predictKmeans(p3['X'], p3_kmeans[1])
+    # t-SNE visualization
+    tsne = TSNE(n_components=2, random_state=random_seed)
+    X_tsne = tsne.fit_transform(X)
+    n_labels = len(np.unique(Y))
 
-# Compute NMI scores
-nmi1 = normalized_mutual_info_score(p3['Y'], labels_gmm)
-nmi2 = normalized_mutual_info_score(p3['Y'], labels_kmeans)
+    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+    for i in range(n_labels):
+        ax[0].scatter(X_tsne[Y == i, 0], X_tsne[Y == i, 1], label=f'Class {i}')
+    for i in range(k):
+        ax[1].scatter(X_tsne[labels_gmm == i, 0], X_tsne[labels_gmm == i, 1], label=f'Cluster {i}')
+        ax[2].scatter(X_tsne[labels_kmeans == i, 0], X_tsne[labels_kmeans == i, 1], label=f'Cluster {i}')
+    ax[0].set_title('True labels')
+    ax[1].set_title(f'GMM (NMI = {nmi1:.3f})')
+    ax[2].set_title(f'K-means (NMI = {nmi2:.3f})')
+    ax[0].legend()
+    ax[1].legend()
+    ax[2].legend()
+    plt.show()
 
-# Print results
-print(f'NMI between true labels and prediction 1: {nmi1:.3f}')
-print(f'NMI between true labels and prediction 2: {nmi2:.3f}')
 
+# In[183]:
+
+
+X, Y, X_test, Y_test, _ = trainTestSplit(p4["data"], 0.1, imgToFeatures)
+
+
+# ### Number of clusters: 10
+
+# In[184]:
+
+
+visualize(X, Y, 10)
+
+
+# ### Number of clusters: 5
 
 # In[ ]:
 
 
-from sklearn.manifold import TSNE
-
-# Load data
-data = pd.read_csv('data.csv')
-X = data.iloc[:, :-1].values
-y = data.iloc[:, -1].values
-
-# Perform t-SNE
-tsne = TSNE(n_components=2, perplexity=30, learning_rate=200)
-X_tsne = tsne.fit_transform(X)
-
-# Plot the results
-plt.scatter(X_tsne[:,0], X_tsne[:,1], c=y)
-plt.title('t-SNE plot')
-plt.show()
+visualize(X, Y, 5)
 
 
-# ## Experiment
+# ### Number of clusters: 15
 
 # In[ ]:
 
 
-
+visualize(X, Y, 15)
 
 
 # # Problem 5
