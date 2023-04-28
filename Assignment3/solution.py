@@ -1175,6 +1175,14 @@ visualize(X, Y, 5)
 visualize(X, Y, 15)
 
 
+# ### Number of clusters: 3
+
+# In[27]:
+
+
+visualize(X, Y, 3)
+
+
 # # Problem 5
 # 
 # Implement Principal Component Analysis on KMNIST. 
