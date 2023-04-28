@@ -3,7 +3,7 @@
 
 # # Initialization
 
-# In[2]:
+# In[6]:
 
 
 import numpy as np
@@ -19,7 +19,7 @@ from PIL import Image
 
 # ### Uncompress compressed files
 
-# In[3]:
+# In[7]:
 
 
 get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../data')
@@ -27,7 +27,7 @@ get_ipython().run_cell_magic('capture', '', '!unzip -n ../data/images.zip -d ../
 
 # ### Custom functions
 
-# In[4]:
+# In[8]:
 
 
 def genFromImage(imageDir, size=(8, 8)):
@@ -81,7 +81,7 @@ def stats(label, data, stats=False):
 
 # ### Data extraction
 
-# In[5]:
+# In[9]:
 
 
 dataFolder = "../data"
@@ -110,7 +110,7 @@ print("(Classification)  p4[data]:", p4["data"].shape)
 print("(Classification)  p5[data]:     ", p5["data"].shape)
 
 
-# In[6]:
+# In[10]:
 
 
 classStats = {}
@@ -139,7 +139,7 @@ p3["X_test"], p3["Y_test"] = splitData(p3["test"])
 p3["X"].shape, p3["Y"].shape, p3["X_test"].shape, p3["Y_test"].shape
 
 
-# In[7]:
+# In[11]:
 
 
 p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(p4["data"], 0.7, imgToFeatures)
@@ -147,7 +147,7 @@ p4["X"], p4["Y"], p4["X_test"], p4["Y_test"], p4["classStats"] = trainTestSplit(
 p4["X"].shape, p4["Y"].shape, p4["X_test"].shape, p4["Y_test"].shape
 
 
-# In[8]:
+# In[12]:
 
 
 classWiseData = [[] for _ in range(10)]
@@ -159,7 +159,7 @@ p5["X"], p5["Y"], p5["X_test"], p5["Y_test"], p5["classStats"] = trainTestSplit(
 p5["X"].shape, p5["Y"].shape, p5["X_test"].shape, p5["Y_test"].shape
 
 
-# In[9]:
+# In[13]:
 
 
 fig, ax = plt.subplots(2, 5, figsize=(12, 4))
@@ -174,7 +174,7 @@ fig.tight_layout()
 
 # # Metrics
 
-# In[35]:
+# In[14]:
 
 
 class metrics:
@@ -262,7 +262,7 @@ class metrics:
 
 # ### Impurity Funcions
 
-# In[11]:
+# In[15]:
 
 
 def gini(data):
@@ -286,7 +286,7 @@ print("Entropy (test): ", entropy(p3["Y"]), entropy(p3['Y'][p3["Y"] == 0]))
 
 # ### CART algorithm
 
-# In[12]:
+# In[16]:
 
 
 # restricting the number of thresholds to increase the speed of the algorithm
@@ -319,7 +319,7 @@ recommendedSplit(p3["X"], p3["Y"], gini)
 
 # ### Decision Tree
 
-# In[71]:
+# In[17]:
 
 
 # inner nodes are [i, t, left, right]
@@ -499,7 +499,7 @@ metrics.printCnf(bestResult_p5_entropy[0][4], bestResult_p5_entropy[1][4])
 
 # ## Implementation
 
-# In[14]:
+# In[18]:
 
 
 def bootstrap(X, Y):
@@ -1025,7 +1025,7 @@ plt.show()
 
 # ### GMM based clustering
 
-# In[156]:
+# In[19]:
 
 
 max_float = np.finfo("float64").max
@@ -1072,7 +1072,16 @@ def predictGMM(X, weights, means, covs):
 
 # ### K-means clustering
 
-# In[161]:
+# In[20]:
+
+
+a = np.array([[1, 2], [3, 4]])
+a.min(axis=0)
+
+a[:, None] - [0, 1]
+
+
+# In[21]:
 
 
 # k-means clustering using numpy
@@ -1097,7 +1106,7 @@ def predictKmeans(X, centroids):
 
 # ## Experiment
 
-# In[182]:
+# In[22]:
 
 
 from sklearn.metrics.cluster import normalized_mutual_info_score
@@ -1136,7 +1145,7 @@ def visualize(X, Y, k, max_iter=100, random_seed=42):
     plt.show()
 
 
-# In[183]:
+# In[24]:
 
 
 X, Y, X_test, Y_test, _ = trainTestSplit(p4["data"], 0.1, imgToFeatures)
@@ -1152,7 +1161,7 @@ visualize(X, Y, 10)
 
 # ### Number of clusters: 5
 
-# In[ ]:
+# In[25]:
 
 
 visualize(X, Y, 5)
@@ -1160,7 +1169,7 @@ visualize(X, Y, 5)
 
 # ### Number of clusters: 15
 
-# In[ ]:
+# In[26]:
 
 
 visualize(X, Y, 15)
